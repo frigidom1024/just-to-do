@@ -1,0 +1,70 @@
+@startuml TodoList ER Diagram
+
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 5
+skinparam sequenceMessageAlign center
+skinparam noteBackgroundColor #FEFECE
+skinparam noteBorderColor #DEDEDE
+
+title TodoList 数据库实体关系图
+
+entity "待办事项表 (todos)" as todos {
+  *id : BIGINT <<PK>>
+  --
+  *title : VARCHAR(255) "标题"
+  *description : TEXT "描述内容"
+  *status : ENUM "状态: pending/in_progress/completed"
+  *priority : ENUM "优先级: low/medium/high"
+  estimated_start_time : DATETIME "预计开始时间"
+  estimated_end_time : DATETIME "预计结束时间"
+  actual_start_time : DATETIME "实际开始时间"
+  actual_end_time : DATETIME "实际结束时间"
+  daily_note_id : BIGINT <<FK>> "关联的每日笔记ID"
+  --
+  created_at : TIMESTAMP "创建时间"
+  updated_at : TIMESTAMP "更新时间"
+  deleted_at : TIMESTAMP "删除时间"
+}
+
+entity "备注表 (notes)" as notes {
+  *id : BIGINT <<PK>>
+  *todo_id : BIGINT <<FK>> "关联待办事项ID"
+  --
+  *content : TEXT "备注内容"
+  --
+  created_at : TIMESTAMP "创建时间"
+  updated_at : TIMESTAMP "更新时间"
+}
+
+entity "每日笔记表 (daily_notes)" as daily_notes {
+  *id : BIGINT <<PK>>
+  --
+  *note_date : DATE "笔记日期"
+  *content : TEXT "笔记内容"
+  --
+  created_at : TIMESTAMP "创建时间"
+  updated_at : TIMESTAMP "更新时间"
+}
+
+"todos" ||--o{ "notes" : "一个待办可以有多个备注"
+"daily_notes" ||--o{ "todos" : "一个每日笔记包含多个待办"
+
+note right of todos
+  **业务规则:**
+  - 待办事项支持软删除（deleted_at）
+  - 状态流转：pending → in_progress → completed
+  - 优先级：low < medium < high
+  - 时间段管理支持预计和实际时间对比
+end note
+
+
+
+note bottom of daily_notes
+  **每日笔记:**
+  - 支持日期唯一约束
+  - 一个每日笔记可包含多个待办事项
+  - 支持导出为 Markdown
+end note
+
+@enduml
