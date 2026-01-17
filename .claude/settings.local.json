@@ -6,7 +6,8 @@
       "Skill(review-code)",
       "Bash(go vet:*)",
       "Bash(git add:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

@@ -268,6 +268,54 @@ func (s *Service) isValidURL(url string) bool {
 	return matched
 }
 
+// ListUsers 列出用户
+//
+// 参数：
+//   ctx - 请求上下文
+//   limit - 限制数量
+//   offset - 偏移量
+//
+// 返回：
+//   []UserEntity - 用户列表
+//   error - 查询失败时的错误
+func (s *Service) ListUsers(ctx context.Context, limit, offset int) ([]UserEntity, error) {
+	return s.repo.List(ctx, limit, offset)
+}
+
+// GetUserByID 根据 ID 获取用户
+//
+// 参数：
+//   ctx - 请求上下文
+//   userID - 用户 ID
+//
+// 返回：
+//   UserEntity - 用户实体
+//   error - 查询失败时的错误
+func (s *Service) GetUserByID(ctx context.Context, userID int64) (UserEntity, error) {
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user by ID: %w", err)
+	}
+	return user, nil
+}
+
+// GetUserByEmail 根据邮箱获取用户
+//
+// 参数：
+//   ctx - 请求上下文
+//   email - 邮箱值对象
+//
+// 返回：
+//   UserEntity - 用户实体
+//   error - 查询失败时的错误
+func (s *Service) GetUserByEmail(ctx context.Context, email Email) (UserEntity, error) {
+	user, err := s.repo.FindByEmail(ctx, email.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user by email: %w", err)
+	}
+	return user, nil
+}
+
 // ConstantTimeCompare 恒定时间比较，防止时序攻击
 // 用于密码、令牌等敏感数据的比较
 func ConstantTimeCompare(a, b string) bool {

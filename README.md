@@ -1,54 +1,66 @@
 # TodoList 后端服务
 
+> 基于 DDD（领域驱动设计）架构的待办事项后端服务
+
 ## 概述
 
-一个基于 DDD（领域驱动设计）架构的待办事项后端服务，提供以下功能：
+一个采用整洁架构（Clean Architecture）和 DDD（领域驱动设计）的后端服务，提供完整的用户认证和待办事项管理功能。
 
-- **用户管理**：用户注册、登录、认证
-- **待办事项管理**：创建待办事项、设置预计时间/执行时间段、实际时间
-- **优先级设置**：支持 low/medium/high 三种优先级
-- **备注功能**：为待办事项添加多条备注
+### 核心功能
+
+- **用户管理**：注册、登录、JWT 认证、权限控制
+- **待办事项管理**：CRUD 操作、优先级设置、时间管理
 - **每日笔记**：每日笔记书写和管理
 - **Markdown 导出**：支持导出为 Markdown 格式
+- **安全认证**：JWT Token、bcrypt 密码加密、角色权限
 
 ## 技术栈
 
-- **语言**：Go 1.25.5
-- **Web框架**：net/http
-- **数据库**：MySQL 8.0+
-- **数据库驱动**：sqlx + go-sql-driver/mysql
-- **配置管理**：Viper
-- **认证授权**：JWT (golang-jwt/jwt/v5)
-- **密码加密**：bcrypt (golang.org/x/crypto)
-- **架构模式**：DDD（领域驱动设计）
-- **日志**：自定义 logger 组件
-- **容器化**：Docker
-- **CI/CD**：GitHub Actions
+| 组件 | 技术 | 版本 |
+|------|------|------|
+| **语言** | Go | 1.25.5+ |
+| **Web框架** | net/http | 标准库 |
+| **数据库** | MySQL | 8.0+ |
+| **ORM** | sqlx | - |
+| **配置管理** | Viper | - |
+| **认证授权** | JWT | golang-jwt/jwt/v5 |
+| **密码加密** | bcrypt | golang.org/x/crypto |
+| **架构模式** | DDD + Clean Arch | - |
+| **日志** | 结构化日志 | slog |
+| **容器化** | Docker | - |
 
 ## 项目结构
 
-```text
+```
 todo-service/
 ├── cmd/
 │   └── server/
 │       └── main.go              # 程序入口
 │
-├── internal/
+├── src/internal/
 │   ├── interfaces/              # 接口层（Adapter）
 │   │   ├── http/
 │   │   │   ├── handler/         # HTTP 处理器
+│   │   │   ├── middleware/      # 中间件（认证等）
 │   │   │   ├── request/         # 请求 DTO
 │   │   │   └── response/        # 响应 DTO
+│   │   ├── dto/                 # 数据传输对象 ⭐ 新增
+│   │   │   └── user_dto.go      # 用户 DTO
 │   │   └── do/                  # 数据对象（Data Object）
 │   │       ├── user.go
 │   │       ├── daily_note.go
 │   │       ├── todo.go
 │   │       └── note.go
 │   │
+│   ├── application/            # 应用层 ⭐ 新增
+│   │   └── user/                # 用户应用服务
+│   │       ├── user_app.go      # 用户用例编排
+│   │       └── ...
+│   │
 │   ├── domain/                  # 领域层（核心）
 │   │   ├── user/                # 用户领域
 │   │   │   ├── entity.go        # 用户实体
-│   │   │   ├── value_objects.go # 值对象（Email, Password, Role）
+│   │   │   ├── value_objects.go # 值对象
 │   │   │   ├── errors.go        # 领域错误
 │   │   │   ├── repository.go    # 仓储接口
 │   │   │   ├── service.go       # 领域服务
@@ -60,7 +72,7 @@ todo-service/
 │   ├── infrastructure/          # 基础设施层
 │   │   ├── persistence/         # 数据持久化
 │   │   │   └── mysql/
-│   │   │       ├── db.go        # 数据库连接
+│   │   │       ├── db.go         # 数据库客户端
 │   │   │       └── user_repository.go  # 用户仓储实现
 │   │   ├── config/              # 配置管理
 │   │   │   ├── db_config.go     # 数据库配置
@@ -69,17 +81,22 @@ todo-service/
 │   │
 │   └── pkg/                     # 内部包
 │       ├── logger/              # 日志组件
-│       └── auth/                # 认证工具
-│           ├── hasher.go        # bcrypt 哈希实现
-│           └── token.go         # JWT Token 工具
+│       ├── auth/                # 认证工具
+│       │   ├── hasher.go        # bcrypt 哈希
+│       │   └── token.go         # JWT Token 工具
+│       └── context/             # 上下文工具 ⭐ 新增
+│           └── user.go         # 用户上下文获取
 │
-├── docs/
-│   ├── architecture.md
-│   └── api.md
+├── docs/                        # 文档
+│   ├── JWT_AUTHENTICATION.md    # JWT 认证说明
+│   ├── JWT_QUICK_START.md       # JWT 快速开始
+│   ├── DTO_ARCHITECTURE.md      # DTO 架构设计
+│   ├── DTO_LOCATION_REFACTOR.md # DTO 重构说明
+│   └── APPLICATION_LAYER_IMPROVEMENTS.md  # 应用层优化
 │
-├── .github/
-│   └── workflows/
-│       └── ci-cd.yml
+├── deployments/                 # 部署配置
+│   ├── db/                       # 数据库部署
+│   └── README.md
 │
 ├── go.mod
 ├── go.sum
@@ -88,92 +105,106 @@ todo-service/
 └── README.md
 ```
 
-## 架构图
+## 架构设计
 
-```mermaid
-flowchart TB
-    %% ===== 接口层 =====
-    subgraph Interfaces["接口层 Interfaces"]
-        API[HTTP API]
-        CLI[CLI / Export]
-    end
-
-    %% ===== 应用层 =====
-    subgraph Application["应用层 Application"]
-        UserApp[User Application Service]
-        TodoApp[Todo Application Service]
-        DailyNoteApp[DailyNote Application Service]
-        ExportApp[Markdown Export Service]
-    end
-
-    %% ===== 领域层 =====
-    subgraph Domain["领域层 Domain"]
-        subgraph UserDomain["User 领域"]
-            User[User 聚合根]
-        end
-
-        subgraph TodoDomain["Todo 领域"]
-            Todo[Todo 聚合根]
-            Priority[Priority 值对象]
-            TimeRange[TimeRange 值对象]
-            Note[Todo Note]
-        end
-
-        subgraph DailyNoteDomain["DailyNote 领域"]
-            DailyNote[DailyNote 聚合根]
-        end
-
-        UserRepo[UserRepository 接口]
-        TodoRepo[TodoRepository 接口]
-        DailyNoteRepo[DailyNoteRepository 接口]
-    end
-
-    %% ===== 基础设施层 =====
-    subgraph Infrastructure["基础设施层 Infrastructure"]
-        RepoImpl[Repository 实现]
-        DB[(Database)]
-        Markdown[Markdown Renderer]
-    end
-
-    %% ===== 调用关系 =====
-    API --> UserApp
-    API --> TodoApp
-    API --> DailyNoteApp
-    API --> ExportApp
-
-    CLI --> ExportApp
-
-    UserApp --> User
-    UserApp --> UserRepo
-
-    TodoApp --> Todo
-    TodoApp --> TodoRepo
-
-    DailyNoteApp --> DailyNote
-    DailyNoteApp --> DailyNoteRepo
-
-    ExportApp --> TodoRepo
-    ExportApp --> DailyNoteRepo
-    ExportApp --> Markdown
-
-    RepoImpl --> DB
-
-    %% ===== 接口实现关系（关键修复点）=====
-    RepoImpl -.-> UserRepo
-    RepoImpl -.-> TodoRepo
-    RepoImpl -.-> DailyNoteRepo
+### 分层架构
 
 ```
+┌─────────────────────────────────────────────────────────┐
+│                     HTTP Layer                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Handler (处理器)                                  │  │
+│  │    ├─ 接收 HTTP 请求                               │  │
+│  │    ├─ 调用应用服务                                 │  │
+│  │    └─ 返回 HTTP 响应                               │  │
+│  └────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Middleware (中间件)                               │  │
+│  │    ├─ JWT 认证                                      │  │
+│  │    ├─ 权限验证                                      │  │
+│  │    └─ 日志记录                                      │  │
+│  └────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────┐
+│                  Application Layer (应用层)              │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Application Service (应用服务)                     │  │
+│  │    ├─ 接收原始数据 (string)                          │  │
+│  │    ├─ 参数验证（值对象创建）                         │  │
+│  │    ├─ 调用领域服务                                   │  │
+│  │    ├─ Entity → DTO 转换                              │  │
+│  │    └─ 业务日志记录                                  │  │
+│  └────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────┐
+│                    Domain Layer (领域层)                │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Value Objects (值对象)                            │  │
+│  │    ├─ Username, Email, Password                     │  │
+│  │    └─ 自验证逻辑                                     │  │
+│  └────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Entity (实体)                                     │  │
+│  │    ├─ 业务行为方法                                   │  │
+│  │    └─ 不包含基础设施依赖                             │  │
+│  └────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Domain Service (领域服务)                         │  │
+│  │    ├─ 跨实体的业务逻辑                              │  │
+│  │    └─ 业务规则实现                                   │  │
+│  └────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Repository Interface (仓储接口)                   │  │
+│  │    └─ 定义数据访问契约                              │  │
+│  └────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                            ↑
+┌─────────────────────────────────────────────────────────┐
+│              Infrastructure Layer (基础设施层)          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Repository Implementation (仓储实现)              │  │
+│  │    └─ MySQL/PostgreSQL/NoSQL...                    │  │
+│  └────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  External Services (外部服务)                      │  │
+│  │    ├─ 文件存储                                       │  │
+│  │    ├─ 消息队列                                       │  │
+│  │    └─ 第三方 API                                     │  │
+│  └────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
 
-## 分层说明
+### 数据流转
 
-| 目录 | 层次 | 职责 | 依赖方向 |
-| --- | --- | --- | --- |
-| `internal/interfaces` | 接口层 | 处理 HTTP 请求/响应，参数验证，路由 | → 应用层 |
-| `internal/application` | 应用层 | 编排业务流程，用例实现（Todo、DailyNote、Export） | → 领域层 |
-| `internal/domain` | 领域层 | 核心业务逻辑，聚合根，值对象，仓储接口 | 无依赖 |
-| `internal/infrastructure` | 基础设施层 | 数据持久化，外部服务对接，配置管理 | → 领域层 |
-| `internal/bootstrap` | 启动层 | 依赖注入，应用初始化 | → 所有层 |
+```
+HTTP Request (JSON)
+    ↓
+┌─────────────────────────────────────────────────┐
+│ Handler Layer                                    │
+│  request.RegisterUserRequest                    │
+└────────────┬────────────────────────────────────┘
+             │ 原始值 (string)
+             ↓
+┌─────────────────────────────────────────────────┐
+│ Application Layer                                │
+│  1. NewUsername(username) → Username VO        │
+│  2. NewEmail(email) → Email VO                  │
+│  3. NewPassword(password) → Password VO        │
+│  4. userService.RegisterUser(...)              │
+│  5. entity → dto.ToUserDTO(entity)               │
+└────────────┬────────────────────────────────────┘
+             │ DTO (*dto.UserDTO)
+             ↓
+┌─────────────────────────────────────────────────┐
+│ Handler Layer (响应转换)                         │
+│  dto.UserDTO → response.UserResponse            │
+└────────────┬────────────────────────────────────┘
+             │
+             ↓
+      HTTP Response (JSON)
+```
 
 ## 快速开始
 
@@ -181,287 +212,448 @@ flowchart TB
 
 - Go 1.25.5+
 - MySQL 8.0+
+- Docker (可选)
 
-### 安装
+### 安装与运行
 
 ```bash
-# 克隆项目
+# 1. 克隆项目
 git clone <repository-url>
+cd todo-service
 
-# 安装依赖
+# 2. 安装依赖
 go mod download
-```
 
-### 运行
+# 3. 配置数据库
+cp config/config.example.yaml config/config.yaml
+# 编辑 config.yaml 中的数据库连接信息
 
-```bash
-# 启动服务
+# 4. 运行数据库迁移
+go run scripts/migrate.go
+
+# 5. 启动服务
 go run cmd/server/main.go
 
-# 或构建后运行
-go build -o bin/server cmd/server/main.go
-./bin/server
+# 服务将在 http://localhost:8080 启动
 ```
 
-## API 端点
-
-### 健康检查
-
-| 方法 | 路径 | 描述 |
-| --- | --- | --- |
-| GET | /health | 健康检查 |
-
-### 用户管理
-
-| 方法 | 路径 | 描述 |
-| --- | --- | --- |
-| POST | /api/users/register | 用户注册 |
-| POST | /api/users/login | 用户登录 |
-| GET | /api/users/profile | 获取用户信息 |
-| PUT | /api/users/profile | 更新用户信息 |
-
-### 待办事项
-
-| 方法 | 路径 | 描述 |
-| --- | --- | --- |
-| POST | /api/todos | 创建待办事项 |
-| GET | /api/todos | 获取待办列表 |
-| GET | /api/todos/:id | 获取单个待办 |
-| PUT | /api/todos/:id | 更新待办事项 |
-| DELETE | /api/todos/:id | 删除待办事项 |
-| POST | /api/todos/:id/notes | 添加备注 |
-| GET | /api/todos/:id/notes | 获取备注列表 |
-
-### 每日笔记
-
-| 方法 | 路径 | 描述 |
-| --- | --- | --- |
-| POST | /api/daily-notes | 创建每日笔记 |
-| GET | /api/daily-notes | 获取每日笔记列表 |
-| GET | /api/daily-notes/:id | 获取单个笔记 |
-| PUT | /api/daily-notes/:id | 更新每日笔记 |
-| DELETE | /api/daily-notes/:id | 删除每日笔记 |
-| GET | /api/daily-notes/:date | 根据日期获取笔记 |
-
-### 导出
-
-| 方法 | 路径 | 描述 |
-| --- | --- | --- |
-| GET | /api/export/daily-notes/:id | 导出每日笔记为 Markdown |
-| GET | /api/export/todos/:id | 导出待办事项为 Markdown |
-
-## 认证机制
-
-### JWT 认证流程
-
-项目使用 JWT（JSON Web Token）实现用户认证：
-
-```text
-用户登录 → 验证密码 → 生成 JWT Token → 返回 Token
-        ↓
-后续请求携带 Token → 解析验证 → 获取用户信息 → 执行业务逻辑
-```
-
-### Token 结构
-
-```go
-type CustomClaims struct {
-    jwt.RegisteredClaims  // 标准字段（exp, iat, 等）
-    UserID   int64  `json:"user_id"`
-    Username string `json:"username"`
-    Role     string `json:"role"`
-}
-```
-
-### 密码加密
-
-使用 bcrypt 算法进行密码哈希：
-
-- **Hasher 接口**：定义在领域层（[domain/user/hasher.go](internal/domain/user/hasher.go)）
-- **bcrypt 实现**：提供在基础设施层（[pkg/auth/hasher.go](internal/pkg/auth/hasher.go)）
-- 默认 cost factor：10
-
-### 依赖注入
-
-使用单例模式获取 TokenTool 实例：
-
-```go
-tokenTool := auth.GetTokenTool()
-token, err := tokenTool.GenerateToken(userID, username, role)
-```
-
-## Docker 部署
-
-### 构建镜像
-
-```bash
-# 构建镜像
-docker build -t todolist:latest .
-
-# 或使用多阶段构建优化镜像大小
-docker build -f Dockerfile.prod -t todolist:latest .
-```
-
-### 运行容器
+### Docker 部署
 
 ```bash
 # 使用 Docker Compose（推荐）
 docker-compose up -d
 
-# 或单独运行
-docker run -d \
-  --name todolist \
-  -p 8080:8080 \
-  -e DB_HOST=mysql \
-  -e DB_PORT=3306 \
-  -e DB_NAME=todolist \
-  -e DB_USER=root \
-  -e DB_PASSWORD=password \
-  todolist:latest
+# 服务将在 http://localhost:8080 可用
 ```
+
+## API 文档
+
+### 认证接口
+
+#### 1. 用户注册
+
+```http
+POST /api/users/register
+Content-Type: application/json
+
+{
+  "username": "johndoe",
+  "email": "john@example.com",
+  "password": "SecurePass123!"
+}
+```
+
+**响应：**
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "id": 1,
+    "username": "johndoe",
+    "email": "john@example.com",
+    "avatar_url": "",
+    "status": "active",
+    "created_at": "2024-01-17T10:30:00Z",
+    "updated_at": "2024-01-17T10:30:00Z"
+  }
+}
+```
+
+#### 2. 用户登录
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "SecurePass123!"
+}
+```
+
+**响应：**
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": 1,
+      "username": "johndoe",
+      "email": "john@example.com",
+      "avatar_url": "",
+      "status": "active"
+    }
+  }
+}
+```
+
+### 受保护的接口
+
+需要认证的接口需要在请求头中携带 Token：
+
+```http
+GET /api/users/me
+Authorization: Bearer <token>
+```
+
+**认证中间件：**
+- `AuthMiddleware` - 强制认证
+- `OptionalAuthMiddleware` - 可选认证
+- `RequireRole(role)` - 角色验证
+
+## 认证机制
+
+### JWT Token 工具
+
+项目提供了完整的 JWT Token 管理工具：
+
+**位置：** [`internal/pkg/auth/token.go`](internal/pkg/auth/token.go)
+
+**功能：**
+- ✅ `GenerateToken(userID, username, role)` - 生成 Token
+- ✅ `ParseToken(token)` - 解析和验证 Token
+- ✅ `RefreshToken(token)` - 刷新 Token
+
+**使用示例：**
+```go
+import "todolist/internal/pkg/auth"
+
+// 生成 Token
+tokenTool := auth.NewTokenTool(cfg)
+token, err := tokenTool.GenerateToken(userID, username, "user")
+```
+
+### 认证中间件
+
+**位置：** [`internal/interfaces/http/middleware/auth.go`](internal/interfaces/http/middleware/auth.go)
+
+**中间件类型：**
+
+| 中间件 | 说明 | 使用场景 |
+|--------|------|---------|
+| `Authenticate` | 强制认证，必须提供有效 Token | 用户信息、修改操作 |
+| `OptionalAuthenticate` | 可选认证，可以匿名访问 | 公开信息查看 |
+| `RequireRole(role)` | 角色验证 | 管理员接口 |
+
+**使用示例：**
+```go
+import (
+    "todolist/internal/interfaces/http/middleware"
+    appauth "todolist/internal/pkg/auth"
+)
+
+// 初始化
+cfg, _ := config.GetJWTConfig()
+tokenTool := appauth.NewTokenTool(cfg)
+auth := middleware.NewAuthMiddleware(tokenTool)
+
+// 受保护的路由
+mux.Handle("/api/users/me",
+    auth.Authenticate(handler.Wrap(GetCurrentUserHandler)))
+
+// 管理员路由
+mux.Handle("/api/admin/users",
+    auth.Authenticate(
+        auth.RequireRole("admin")(
+            handler.Wrap(ListUsersHandler))))
+```
+
+### 上下文工具
+
+**位置：** [`internal/pkg/context/user.go`](internal/pkg/context/user.go)
+
+**功能：**
+- ✅ `GetUserID(ctx)` - 获取当前用户 ID
+- ✅ `GetUsername(ctx)` - 获取当前用户名
+- ✅ `GetRole(ctx)` - 获取用户角色
+- ✅ `HasRole(ctx, role)` - 检查是否有指定角色
+
+**使用示例：**
+```go
+import "todolist/internal/pkg/contextx"
+
+func GetCurrentUserHandler(ctx context.Context, req Empty) (UserResponse, error) {
+    // 获取当前用户
+    userID, err := contextx.GetUserID(ctx)
+    if err != nil {
+        return UserResponse{}, err
+    }
+
+    // 检查权限
+    if !contextx.HasRole(ctx, "admin") {
+        return UserResponse{}, ErrPermissionDenied
+    }
+
+    // 业务逻辑
+    return userService.GetByID(ctx, userID)
+}
+```
+
+详细文档：[JWT_AUTHENTICATION.md](docs/JWT_AUTHENTICATION.md)
+
+## 架构设计文档
+
+项目包含详细的架构设计文档：
+
+| 文档 | 说明 |
+|------|------|
+| [JWT_AUTHENTICATION.md](docs/JWT_AUTHENTICATION.md) | JWT 认证机制完整指南 |
+| [JWT_QUICK_START.md](docs/JWT_QUICK_START.md) | JWT 快速参考 |
+| [DTO_ARCHITECTURE.md](docs/DTO_ARCHITECTURE.md) | DTO 架构设计 |
+| [DTO_LOCATION_REFACTOR.md](docs/DTO_LOCATION_REFACTOR.md) | DTO 重构说明 |
+| [APPLICATION_LAYER_IMPROVEMENTS.md](docs/APPLICATION_LAYER_IMPROVEMENTS.md) | 应用层优化 |
+
+## 开发规范
+
+### 日志规范
+
+项目使用结构化日志，遵循 [logger/CONVENTIONS.md](internal/pkg/logger/CONVENTIONS.md)：
+
+```go
+import applogger "todolist/internal/pkg/logger"
+
+// 记录日志
+applogger.Info("用户注册成功",
+    applogger.Int64("user_id", userID),
+    applogger.String("username", username),
+    applogger.Duration("duration_ms", duration))
+
+// 带上下文的日志
+applogger.InfoContext(ctx, "开始处理请求",
+    applogger.String("path", r.URL.Path))
+```
+
+### DDD 设计原则
+
+1. **领域层**：纯业务逻辑，不依赖基础设施
+2. **应用层**：用例编排，接收原始值，返回 DTO
+3. **接口层**：HTTP 处理，使用应用层服务
+4. **基础设施层**：实现仓储接口，对接外部服务
+
+### 分层依赖
+
+```
+Handler → Application → Domain → Infrastructure
+  ↓          ↓           ↓          ↓
+ HTTP       Use Case    Business   Data Access
+```
+
+**依赖方向**：外层依赖内层，内层不依赖外层
+
+## 数据库设计
+
+### 核心实体
+
+- **users（用户）**：账户信息、认证状态
+- **daily_notes（每日笔记）**：用户笔记
+- **todos（待办事项）**：关联笔记的待办
+- **notes（备注）**：待办事项的备注
+
+**ER 图：** [docs/arch/er.puml](docs/arch/er.puml)
+
+### 数据库迁移
+
+```bash
+# 运行迁移
+go run scripts/migrate.go
+
+# 查看迁移脚本
+ls internal/infrastructure/persistence/migrations/
+```
+
+## 开发状态
+
+### 已完成 ✅
+
+- [x] 项目结构搭建
+- [x] DDD 分层架构
+- [x] HTTP 基础框架
+- [x] 健康检查接口
+- [x] 结构化日志组件
+- [x] 用户领域模型
+  - [x] 用户实体（Entity）
+  - [x] 值对象（Email, Password, Username）
+  - [x] 领域错误定义
+  - [x] 领域服务（UserService）
+  - [x] 仓储接口（Repository）
+- [x] 用户仓储实现（MySQL）
+- [x] 密码哈希（bcrypt）
+- [x] JWT Token 工具
+- [x] 认证中间件
+- [x] 上下文工具
+- [x] 应用层服务（Application）
+- [x] DTO 架构
+- [x] 数据库连接和配置
+- [x] 用户注册/登录接口
+
+### 进行中 🚧
+
+- [ ] 待办事项领域模型
+- [ ] 每日笔记领域模型
+- [ ] Markdown 导出功能
+- [ ] 单元测试
+- [ ] API 文档完善
+
+### 待规划 📋
+
+- [ ] Docker 部署优化
+- [ ] CI/CD Pipeline
+- [ ] 性能优化
+- [ ] 监控和告警
+- [ ] 链路追踪
+
+## 测试
+
+```bash
+# 运行所有测试
+go test ./...
+
+# 运行特定包的测试
+go test ./internal/domain/user/...
+
+# 查看测试覆盖率
+go test -cover ./...
+```
+
+## 配置
 
 ### 环境变量
 
 | 变量名 | 说明 | 默认值 |
-| --- | --- | --- |
+|--------|------|--------|
 | `SERVER_PORT` | 服务端口 | 8080 |
 | `DB_HOST` | 数据库主机 | localhost |
 | `DB_PORT` | 数据库端口 | 3306 |
 | `DB_NAME` | 数据库名称 | todolist |
 | `DB_USER` | 数据库用户 | root |
 | `DB_PASSWORD` | 数据库密码 | - |
-| `GIN_MODE` | 运行模式 | release |
+| `JWT_SECRET` | JWT 密钥 | - |
+| `JWT_EXPIRATION` | Token 过期时间 | 24h |
+| `LOG_LEVEL` | 日志级别 | info |
+| `LOG_FORMAT` | 日志格式 | json |
 
-## CI/CD
-
-### GitHub Actions 工作流
-
-项目使用 GitHub Actions 实现自动化构建和部署：
+### 配置文件
 
 ```yaml
-# .github/workflows/ci-cd.yml
-name: CI/CD Pipeline
+# config/config.yaml
+server:
+  port: 8080
 
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+database:
+  host: localhost
+  port: 3306
+  name: todolist
+  user: root
+  password: ""
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25.5'
-      - name: Run tests
-        run: |
-          go test -v ./...
-          go vet ./...
+jwt:
+  secret_key: "your-secret-key-at-least-32-characters"
+  expire_duration: 24h
 
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/todolist:latest
-            ${{ secrets.DOCKER_USERNAME }}/todolist:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/todolist:latest
-            docker stop todolist || true
-            docker rm todolist || true
-            docker run -d --name todolist -p 8080:8080 ${{ secrets.DOCKER_USERNAME }}/todolist:latest
+logger:
+  level: info
+  format: json
+  add_source: false
 ```
 
-### 配置 Secrets
+## 常见问题
 
-在 GitHub 仓库设置中添加以下 Secrets：
+### 1. 如何添加新的接口？
 
-| Secret 名称 | 说明 |
-| --- | --- |
-| `DOCKER_USERNAME` | Docker Hub 用户名 |
-| `DOCKER_PASSWORD` | Docker Hub 密码/Token |
-| `SERVER_HOST` | 部署服务器地址 |
-| `SERVER_USER` | 服务器用户名 |
-| `SSH_PRIVATE_KEY` | SSH 私钥 |
+```go
+// 1. 在 handler 中定义处理器
+func NewTodoHandler(ctx context.Context, req request.CreateTodoRequest) (response.TodoResponse, error) {
+    return todoAppService.CreateTodo(ctx, req.Title, req.Content)
+}
 
-## 开发状态
+// 2. 在 routes.go 中注册路由
+mux.Handle("POST /api/todos",
+    auth.Authenticate(handler.Wrap(NewTodoHandler)))
+```
 
-### 后端开发
+### 2. 如何使用 JWT 认证？
 
-- [x] 项目结构搭建
-- [x] HTTP 基础框架
-- [x] 健康检查接口
-- [x] 数据模型设计（DO）
-- [x] ER 图设计
-- [x] 日志组件（logger）
-- [x] 用户领域模型实现
-  - [x] 用户实体（Entity）
-  - [x] 值对象（Email, Password, Role）
-  - [x] 领域错误定义
-  - [x] 领域服务（UserDomainService）
-- [x] 用户仓储接口和实现
-- [x] 密码哈希（bcrypt）
-- [x] JWT Token 工具
-- [x] 数据库配置和连接
-- [x] 用户 HTTP Handler
-- [ ] 待办事项领域模型
-- [ ] 每日笔记领域模型
-- [ ] 应用服务层（Application）
-- [ ] 完整的业务接口开发
-- [ ] 单元测试
-- [ ] API 文档
+```go
+// 1. 登录获取 Token
+POST /api/auth/login
+{
+  "email": "user@example.com",
+  "password": "password"
+}
 
-### DevOps
+// 2. 使用 Token 访问受保护接口
+GET /api/users/me
+Headers: Authorization: Bearer <token>
+```
 
-- [ ] Dockerfile 编写
-- [ ] Docker Compose 配置
-- [ ] GitHub Actions 工作流
-- [ ] CI/CD Pipeline 调试
-- [ ] 生产环境部署配置
+### 3. 如何获取当前用户？
 
-## 数据库设计
+```go
+import "todolist/internal/pkg/contextx"
 
-### ER 图
+func Handler(ctx context.Context) {
+    userID := contextx.MustGetUserID(ctx)
+    username := contextx.MustGetUsername(ctx)
+    // ...
+}
+```
 
-项目包含以下核心实体：
+### 4. 如何添加角色权限？
 
-- **用户（users）**：用户账户信息
-- **每日笔记（daily_notes）**：用户的每日笔记
-- **待办事项（todos）**：关联到每日笔记的待办事项
-- **备注（notes）**：待办事项的备注信息
+```go
+// 在路由中使用 RequireRole 中间件
+mux.Handle("/api/admin/users",
+    auth.Authenticate(
+        auth.RequireRole("admin")(
+            handler.Wrap(AdminHandler))))
 
-数据层级关系：用户 → 每日笔记 → 待办事项 → 备注
+// 在 Handler 中检查
+if !contextx.HasRole(ctx, "admin") {
+    return errors.New("permission denied")
+}
+```
 
-详细的 ER 图请参考：[docs/arch/er.puml](docs/arch/er.puml)
+## 贡献指南
+
+1. Fork 项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+## 许可证
+
+[MIT License](LICENSE)
+
+## 联系方式
+
+- 项目地址：[GitHub Repository]
+- 问题反馈：[Issues]
+
+---
+
+**最后更新：** 2024-01-17
+**文档版本：** 2.0

@@ -29,22 +29,32 @@ var (
 	ContextKeyRole = "role"
 )
 
+type AuthMiddleware interface {
+	Authenticate(next http.Handler) http.Handler
+
+	OptionalAuthenticate(next http.Handler) http.Handler
+
+	RequireRole(allowedRoles ...string) func(http.Handler) http.Handler
+}
+
 // AuthMiddleware JWT 认证中间件
 //
 // 从请求头中提取 JWT token，验证其有效性，并将用户信息存入 context
-type AuthMiddleware struct {
+type AuthMiddlewareImpl struct {
 	tokenTool appauth.TokenTool
 }
 
 // NewAuthMiddleware 创建认证中间件
 //
 // 参数：
-//   tokenTool - Token 工具实例
+//
+//	tokenTool - Token 工具实例
 //
 // 返回：
-//   *AuthMiddleware - 认证中间件实例
-func NewAuthMiddleware(tokenTool appauth.TokenTool) *AuthMiddleware {
-	return &AuthMiddleware{
+//
+//	*AuthMiddleware - 认证中间件实例
+func NewAuthMiddleware(tokenTool appauth.TokenTool) AuthMiddleware {
+	return &AuthMiddlewareImpl{
 		tokenTool: tokenTool,
 	}
 }
@@ -57,7 +67,7 @@ func NewAuthMiddleware(tokenTool appauth.TokenTool) *AuthMiddleware {
 //
 //	middleware := NewAuthMiddleware(tokenTool)
 //	http.HandleFunc("/protected", middleware Authenticate(handler))
-func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
+func (m *AuthMiddlewareImpl) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 1. 从请求头获取 token
 		token, err := m.extractToken(r)
@@ -103,9 +113,10 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 // 2. Authorization: <token> (不推荐，但向后兼容)
 //
 // 返回：
-//   string - 提取的 token
-//   error - 提取失败时的错误
-func (m *AuthMiddleware) extractToken(r *http.Request) (string, error) {
+//
+//	string - 提取的 token
+//	error - 提取失败时的错误
+func (m *AuthMiddlewareImpl) extractToken(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		return "", ErrMissingToken
@@ -127,12 +138,14 @@ func (m *AuthMiddleware) extractToken(r *http.Request) (string, error) {
 // contextWithUser 将用户信息存入 context
 //
 // 参数：
-//   ctx - 原始 context
-//   claims - JWT claims
+//
+//	ctx - 原始 context
+//	claims - JWT claims
 //
 // 返回：
-//   context.Context - 包含用户信息的 context
-func (m *AuthMiddleware) contextWithUser(ctx context.Context, claims *appauth.CustomClaims) context.Context {
+//
+//	context.Context - 包含用户信息的 context
+func (m *AuthMiddlewareImpl) contextWithUser(ctx context.Context, claims *appauth.CustomClaims) context.Context {
 	ctx = context.WithValue(ctx, ContextKeyUserID, claims.UserID)
 	ctx = context.WithValue(ctx, ContextKeyUsername, claims.Username)
 	ctx = context.WithValue(ctx, ContextKeyRole, claims.Role)
@@ -145,7 +158,7 @@ func (m *AuthMiddleware) contextWithUser(ctx context.Context, claims *appauth.Cu
 // 如果没有提供 token 或 token 无效，继续处理请求但不设置用户信息
 //
 // 使用场景：既支持匿名访问又支持登录用户的接口
-func (m *AuthMiddleware) OptionalAuthenticate(next http.Handler) http.Handler {
+func (m *AuthMiddlewareImpl) OptionalAuthenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, err := m.extractToken(r)
 		if err != nil {
@@ -176,13 +189,14 @@ func (m *AuthMiddleware) OptionalAuthenticate(next http.Handler) http.Handler {
 // 验证用户是否具有指定的角色，需要与 AuthMiddleware 配合使用
 //
 // 参数：
-//   roles - 允许的角色列表
+//
+//	roles - 允许的角色列表
 //
 // 使用方式：
 //
 //	middleware := NewAuthMiddleware(tokenTool)
 //	http.HandleFunc("/admin", middleware.Authenticate(middleware.RequireRole("admin")(handler)))
-func (m *AuthMiddleware) RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
+func (m *AuthMiddlewareImpl) RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -219,7 +233,7 @@ func (m *AuthMiddleware) RequireRole(allowedRoles ...string) func(http.Handler) 
 }
 
 // hasRole 检查角色是否在允许列表中
-func (m *AuthMiddleware) hasRole(role string, allowedRoles []string) bool {
+func (m *AuthMiddlewareImpl) hasRole(role string, allowedRoles []string) bool {
 	for _, allowed := range allowedRoles {
 		if role == allowed {
 			return true

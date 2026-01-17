@@ -14,7 +14,21 @@ import (
 
 	"todolist/internal/domain/user"
 	applogger "todolist/internal/pkg/logger"
+
+	"todolist/internal/interfaces/dto"
 )
+
+type UserApplicationService interface {
+	RegisterUser(ctx context.Context, username string, email string, password string) (*dto.UserDTO, error)
+
+	AuthenticateUser(ctx context.Context, email string, password string) (*dto.UserDTO, error)
+
+	ChangePassword(ctx context.Context, userID int64, oldPassword string, newPassword string) error
+
+	UpdateEmail(ctx context.Context, userID int64, newEmail string) error
+
+	UpdateAvatar(ctx context.Context, userID int64, avatarURL string) error
+}
 
 // UserApplicationService 用户应用服务。
 //
@@ -23,7 +37,7 @@ import (
 // 所有业务规则都在领域层实现。
 //
 // 通过依赖注入接收领域服务，遵循依赖倒置原则。
-type UserApplicationService struct {
+type UserApplicationServiceImpl struct {
 	userService user.UserService
 }
 
@@ -33,9 +47,9 @@ type UserApplicationService struct {
 //   userService - 用户领域服务（通过依赖注入传入）
 //
 // 返回：
-//   *UserApplicationService - 应用服务实例
-func NewUserApplicationService(userService user.UserService) *UserApplicationService {
-	return &UserApplicationService{
+//   UserApplicationService - 应用服务接口
+func NewUserApplicationService(userService user.UserService) UserApplicationService {
+	return &UserApplicationServiceImpl{
 		userService: userService,
 	}
 }
@@ -43,108 +57,196 @@ func NewUserApplicationService(userService user.UserService) *UserApplicationSer
 // RegisterUser 用户注册用例。
 //
 // 此用例包括以下步骤：
-// 1. 调用领域服务执行业务逻辑
-// 2. 记录业务日志
+// 1. 参数验证与值对象创建
+// 2. 调用领域服务执行业务逻辑
+// 3. 转换为 DTO
+// 4. 记录业务日志
 //
-// 注意：值对象的验证应由调用方（Handler 层）完成。
+// 职责说明：
+//   - 接收原始的 HTTP 请求数据（string）
+//   - 负责值对象的创建和验证
+//   - 协调领域服务执行业务逻辑
+//   - 将领域实体转换为 DTO，避免泄露领域模型
 //
 // 参数：
 //   ctx - 请求上下文
-//   username - 用户名值对象（已验证）
-//   email - 邮箱值对象（已验证）
-//   password - 密码值对象（已验证）
+//   username - 用户名（原始字符串）
+//   email - 邮箱（原始字符串）
+//   password - 密码（原始字符串）
 //
 // 返回：
-//   user.UserEntity - 注册成功的用户实体
-//   error - 注册失败时的错误
-func (s *UserApplicationService) RegisterUser(
+//   *dto.UserDTO - 注册成功的用户 DTO
+//   error - 注册失败时的错误（包含验证失败和业务逻辑失败）
+func (s *UserApplicationServiceImpl) RegisterUser(
 	ctx context.Context,
-	username user.Username,
-	email user.Email,
-	password user.Password,
-) (user.UserEntity, error) {
+	username string,
+	email string,
+	password string,
+) (*dto.UserDTO, error) {
 	startTime := time.Now()
 
 	// 记录请求开始
 	applogger.InfoContext(ctx, "开始处理用户注册请求",
-		applogger.String("username", username.String()),
-		applogger.String("email", email.String()),
+		applogger.String("username", username),
+		applogger.String("email", email),
 	)
 
-	// 调用领域服务执行业务逻辑
-	userEntity, err := s.userService.RegisterUser(ctx, username, email, password)
+	// 1. 参数验证与值对象创建
+	usernameVO, err := user.NewUsername(username)
 	if err != nil {
-		applogger.ErrorContext(ctx, "用户注册失败",
-			applogger.String("username", username.String()),
-			applogger.String("email", email.String()),
+		applogger.WarnContext(ctx, "用户名验证失败",
+			applogger.String("username", username),
 			applogger.Err(err),
 		)
 		return nil, err
 	}
 
-	// 记录成功日志
+	emailVO, err := user.NewEmail(email)
+	if err != nil {
+		applogger.WarnContext(ctx, "邮箱验证失败",
+			applogger.String("email", email),
+			applogger.Err(err),
+		)
+		return nil, err
+	}
+
+	passwordVO, err := user.NewPassword(password)
+	if err != nil {
+		applogger.WarnContext(ctx, "密码验证失败",
+			applogger.Err(err),
+		)
+		return nil, err
+	}
+
+	// 2. 调用领域服务执行业务逻辑
+	userEntity, err := s.userService.RegisterUser(ctx, usernameVO, emailVO, passwordVO)
+	if err != nil {
+		applogger.ErrorContext(ctx, "用户注册失败",
+			applogger.String("username", username),
+			applogger.String("email", email),
+			applogger.Err(err),
+		)
+		return nil, err
+	}
+
+	// 3. 转换为 DTO
+	userDTO := dto.ToUserDTO(userEntity)
+
+	// 4. 记录成功日志
 	duration := time.Since(startTime)
 	applogger.InfoContext(ctx, "用户注册成功",
-		applogger.Int64("user_id", userEntity.GetID()),
-		applogger.String("username", userEntity.GetUsername()),
+		applogger.Int64("user_id", userDTO.ID),
+		applogger.String("username", userDTO.Username),
 		applogger.Duration("duration_ms", duration),
 	)
 
-	return userEntity, nil
+	return &userDTO, nil
 }
 
 // AuthenticateUser 用户认证用例。
 //
+// 职责说明：
+//   - 接收原始的登录数据（string）
+//   - 负责值对象的创建和验证
+//   - 调用领域服务进行认证
+//   - 将领域实体转换为 DTO
+//
 // 参数：
 //   ctx - 请求上下文
-//   email - 邮箱值对象
-//   password - 密码值对象
+//   email - 邮箱（原始字符串）
+//   password - 密码（原始字符串）
 //
 // 返回：
-//   user.UserEntity - 认证成功的用户实体
+//   *dto.UserDTO - 认证成功的用户 DTO
 //   error - 认证失败时的错误
-func (s *UserApplicationService) AuthenticateUser(
+func (s *UserApplicationServiceImpl) AuthenticateUser(
 	ctx context.Context,
-	email user.Email,
-	password user.Password,
-) (user.UserEntity, error) {
+	email string,
+	password string,
+) (*dto.UserDTO, error) {
 	applogger.InfoContext(ctx, "开始用户认证",
-		applogger.String("email", email.String()))
+		applogger.String("email", email))
 
-	userEntity, err := s.userService.AuthenticateUser(ctx, email, password)
+	// 1. 参数验证与值对象创建
+	emailVO, err := user.NewEmail(email)
 	if err != nil {
-		// 认证失败是正常业务场景，使用 Info 级别
-		applogger.InfoContext(ctx, "用户认证失败",
-			applogger.String("email", email.String()))
+		applogger.WarnContext(ctx, "邮箱格式验证失败",
+			applogger.String("email", email),
+			applogger.Err(err),
+		)
 		return nil, err
 	}
 
-	applogger.InfoContext(ctx, "用户认证成功",
-		applogger.Int64("user_id", userEntity.GetID()),
-		applogger.String("username", userEntity.GetUsername()))
+	passwordVO, err := user.NewPassword(password)
+	if err != nil {
+		applogger.WarnContext(ctx, "密码验证失败",
+			applogger.Err(err),
+		)
+		return nil, err
+	}
 
-	return userEntity, nil
+	// 2. 调用领域服务进行认证
+	userEntity, err := s.userService.AuthenticateUser(ctx, emailVO, passwordVO)
+	if err != nil {
+		// 认证失败是正常业务场景，使用 Info 级别
+		applogger.InfoContext(ctx, "用户认证失败",
+			applogger.String("email", email))
+		return nil, err
+	}
+
+	// 3. 转换为 DTO
+	userDTO := dto.ToUserDTO(userEntity)
+
+	applogger.InfoContext(ctx, "用户认证成功",
+		applogger.Int64("user_id", userDTO.ID),
+		applogger.String("username", userDTO.Username))
+
+	return &userDTO, nil
 }
 
 // ChangePassword 修改密码用例。
 //
+// 职责说明：
+//   - 接收原始的密码数据（string）
+//   - 负责值对象的创建和验证
+//   - 调用领域服务修改密码
+//
 // 参数：
 //   ctx - 请求上下文
 //   userID - 用户 ID
-//   oldPassword - 旧密码值对象
-//   newPassword - 新密码值对象
+//   oldPassword - 旧密码（原始字符串）
+//   newPassword - 新密码（原始字符串）
 //
 // 返回：
 //   error - 修改失败时的错误
-func (s *UserApplicationService) ChangePassword(
+func (s *UserApplicationServiceImpl) ChangePassword(
 	ctx context.Context,
 	userID int64,
-	oldPassword, newPassword user.Password,
+	oldPassword string,
+	newPassword string,
 ) error {
 	applogger.InfoContext(ctx, "开始修改密码",
 		applogger.Int64("user_id", userID))
 
-	err := s.userService.ChangePassword(ctx, userID, oldPassword, newPassword)
+	// 1. 参数验证与值对象创建
+	oldPasswordVO, err := user.NewPassword(oldPassword)
+	if err != nil {
+		applogger.WarnContext(ctx, "旧密码验证失败",
+			applogger.Err(err),
+		)
+		return err
+	}
+
+	newPasswordVO, err := user.NewPassword(newPassword)
+	if err != nil {
+		applogger.WarnContext(ctx, "新密码验证失败",
+			applogger.Err(err),
+		)
+		return err
+	}
+
+	// 2. 调用领域服务修改密码
+	err = s.userService.ChangePassword(ctx, userID, oldPasswordVO, newPasswordVO)
 	if err != nil {
 		applogger.ErrorContext(ctx, "修改密码失败",
 			applogger.Int64("user_id", userID),
@@ -160,23 +262,39 @@ func (s *UserApplicationService) ChangePassword(
 
 // UpdateEmail 更新邮箱用例。
 //
+// 职责说明：
+//   - 接收原始的邮箱数据（string）
+//   - 负责值对象的创建和验证
+//   - 调用领域服务更新邮箱
+//
 // 参数：
 //   ctx - 请求上下文
 //   userID - 用户 ID
-//   newEmail - 新邮箱值对象
+//   newEmail - 新邮箱（原始字符串）
 //
 // 返回：
 //   error - 更新失败时的错误
-func (s *UserApplicationService) UpdateEmail(
+func (s *UserApplicationServiceImpl) UpdateEmail(
 	ctx context.Context,
 	userID int64,
-	newEmail user.Email,
+	newEmail string,
 ) error {
 	applogger.InfoContext(ctx, "开始更新邮箱",
 		applogger.Int64("user_id", userID),
-		applogger.String("new_email", newEmail.String()))
+		applogger.String("new_email", newEmail))
 
-	err := s.userService.UpdateEmail(ctx, userID, newEmail)
+	// 1. 参数验证与值对象创建
+	newEmailVO, err := user.NewEmail(newEmail)
+	if err != nil {
+		applogger.WarnContext(ctx, "邮箱格式验证失败",
+			applogger.String("email", newEmail),
+			applogger.Err(err),
+		)
+		return err
+	}
+
+	// 2. 调用领域服务更新邮箱
+	err = s.userService.UpdateEmail(ctx, userID, newEmailVO)
 	if err != nil {
 		applogger.ErrorContext(ctx, "更新邮箱失败",
 			applogger.Int64("user_id", userID),
@@ -192,14 +310,18 @@ func (s *UserApplicationService) UpdateEmail(
 
 // UpdateAvatar 更新头像用例。
 //
+// 职责说明：
+//   - 接收原始的头像 URL（string）
+//   - 调用领域服务更新头像
+//
 // 参数：
 //   ctx - 请求上下文
 //   userID - 用户 ID
-//   avatarURL - 头像 URL
+//   avatarURL - 头像 URL（原始字符串）
 //
 // 返回：
 //   error - 更新失败时的错误
-func (s *UserApplicationService) UpdateAvatar(
+func (s *UserApplicationServiceImpl) UpdateAvatar(
 	ctx context.Context,
 	userID int64,
 	avatarURL string,
