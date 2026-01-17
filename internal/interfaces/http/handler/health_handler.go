@@ -2,12 +2,12 @@ package handler
 
 import (
 	"context"
-	healthrequest "todolist/internal/interfaces/http/request/health"
-	healthresponse "todolist/internal/interfaces/http/response/health"
+	request "todolist/internal/interfaces/http/request"
+	response "todolist/internal/interfaces/http/response"
 )
 
-func GetHealthHandler(ctx context.Context, req healthrequest.HealthRequest) (healthresponse.HealthData, error) {
-	return healthresponse.HealthData{
+func GetHealthHandler(ctx context.Context, req request.HealthRequest) (response.HealthData, error) {
+	return response.HealthData{
 		Status: "healthy",
 	}, nil
 }

@@ -9,6 +9,20 @@ skinparam noteBorderColor #DEDEDE
 
 title TodoList 数据库实体关系图
 
+entity "用户表 (users)" as users {
+  *id : BIGINT <<PK>>
+  --
+  *username : VARCHAR(50) "用户名"
+  *email : VARCHAR(255) "邮箱"
+  *password_hash : VARCHAR(255) "密码哈希"
+  *avatar_url : VARCHAR(500) "头像URL"
+  *status : ENUM "状态: active/inactive/suspended"
+  --
+  created_at : TIMESTAMP "创建时间"
+  updated_at : TIMESTAMP "更新时间"
+  deleted_at : TIMESTAMP "删除时间"
+}
+
 entity "待办事项表 (todos)" as todos {
   *id : BIGINT <<PK>>
   --
@@ -40,6 +54,7 @@ entity "备注表 (notes)" as notes {
 entity "每日笔记表 (daily_notes)" as daily_notes {
   *id : BIGINT <<PK>>
   --
+  *user_id : BIGINT <<FK>> "关联用户ID"
   *note_date : DATE "笔记日期"
   *content : TEXT "笔记内容"
   --
@@ -47,8 +62,18 @@ entity "每日笔记表 (daily_notes)" as daily_notes {
   updated_at : TIMESTAMP "更新时间"
 }
 
+"users" ||--o{ "daily_notes" : "一个用户有多个每日笔记"
 "todos" ||--o{ "notes" : "一个待办可以有多个备注"
 "daily_notes" ||--o{ "todos" : "一个每日笔记包含多个待办"
+
+note right of users
+  **用户管理:**
+  - 支持软删除（deleted_at）
+  - 用户名和邮箱唯一性约束
+  - 密码使用 bcrypt 加密存储
+  - 状态：active（活跃）/inactive（未激活）/suspended（暂停）
+end note
+
 
 note right of todos
   **业务规则:**

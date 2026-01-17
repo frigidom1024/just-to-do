@@ -1,4 +1,4 @@
-package healthresponse
+package response
 
 // HealthData 健康检查返回的数据类型
 type HealthData struct {
