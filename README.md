@@ -17,7 +17,11 @@
 - **Web框架**：net/http
 - **数据库**：MySQL 8.0+
 - **数据库驱动**：sqlx + go-sql-driver/mysql
+- **配置管理**：Viper
+- **认证授权**：JWT (golang-jwt/jwt/v5)
+- **密码加密**：bcrypt (golang.org/x/crypto)
 - **架构模式**：DDD（领域驱动设计）
+- **日志**：自定义 logger 组件
 - **容器化**：Docker
 - **CI/CD**：GitHub Actions
 
@@ -35,32 +39,39 @@ todo-service/
 │   │   │   ├── handler/         # HTTP 处理器
 │   │   │   ├── request/         # 请求 DTO
 │   │   │   └── response/        # 响应 DTO
-│   │   ├── do/                  # 数据对象（Data Object）
-│   │   │   ├── user.go
-│   │   │   ├── daily_note.go
-│   │   │   ├── todo.go
-│   │   │   └── note.go
-│   │   └── dto/                 # 数据传输对象
-│   │
-│   ├── application/             # 应用层（Use Case）
-│   │   ├── user/                # 用户用例
-│   │   ├── todo/                # 待办事项用例
-│   │   ├── daily_note/          # 每日笔记用例
-│   │   └── export/              # 导出用例
+│   │   └── do/                  # 数据对象（Data Object）
+│   │       ├── user.go
+│   │       ├── daily_note.go
+│   │       ├── todo.go
+│   │       └── note.go
 │   │
 │   ├── domain/                  # 领域层（核心）
 │   │   ├── user/                # 用户领域
+│   │   │   ├── entity.go        # 用户实体
+│   │   │   ├── value_objects.go # 值对象（Email, Password, Role）
+│   │   │   ├── errors.go        # 领域错误
+│   │   │   ├── repository.go    # 仓储接口
+│   │   │   ├── service.go       # 领域服务
+│   │   │   └── hasher.go        # 密码哈希接口
 │   │   ├── todo/                # 待办事项领域
 │   │   ├── daily_note/          # 每日笔记领域
 │   │   └── common/              # 通用领域概念
 │   │
 │   ├── infrastructure/          # 基础设施层
 │   │   ├── persistence/         # 数据持久化
-│   │   ├── markdown/            # Markdown 渲染
-│   │   └── config/              # 配置管理
+│   │   │   └── mysql/
+│   │   │       ├── db.go        # 数据库连接
+│   │   │       └── user_repository.go  # 用户仓储实现
+│   │   ├── config/              # 配置管理
+│   │   │   ├── db_config.go     # 数据库配置
+│   │   │   └── jwt_config.go    # JWT 配置
+│   │   └── hasher/              # 密码哈希实现
 │   │
 │   └── pkg/                     # 内部包
-│       └── logger/              # 日志组件
+│       ├── logger/              # 日志组件
+│       └── auth/                # 认证工具
+│           ├── hasher.go        # bcrypt 哈希实现
+│           └── token.go         # JWT Token 工具
 │
 ├── docs/
 │   ├── architecture.md
@@ -239,6 +250,46 @@ go build -o bin/server cmd/server/main.go
 | GET | /api/export/daily-notes/:id | 导出每日笔记为 Markdown |
 | GET | /api/export/todos/:id | 导出待办事项为 Markdown |
 
+## 认证机制
+
+### JWT 认证流程
+
+项目使用 JWT（JSON Web Token）实现用户认证：
+
+```text
+用户登录 → 验证密码 → 生成 JWT Token → 返回 Token
+        ↓
+后续请求携带 Token → 解析验证 → 获取用户信息 → 执行业务逻辑
+```
+
+### Token 结构
+
+```go
+type CustomClaims struct {
+    jwt.RegisteredClaims  // 标准字段（exp, iat, 等）
+    UserID   int64  `json:"user_id"`
+    Username string `json:"username"`
+    Role     string `json:"role"`
+}
+```
+
+### 密码加密
+
+使用 bcrypt 算法进行密码哈希：
+
+- **Hasher 接口**：定义在领域层（[domain/user/hasher.go](internal/domain/user/hasher.go)）
+- **bcrypt 实现**：提供在基础设施层（[pkg/auth/hasher.go](internal/pkg/auth/hasher.go)）
+- 默认 cost factor：10
+
+### 依赖注入
+
+使用单例模式获取 TokenTool 实例：
+
+```go
+tokenTool := auth.GetTokenTool()
+token, err := tokenTool.GenerateToken(userID, username, role)
+```
+
 ## Docker 部署
 
 ### 构建镜像
@@ -374,13 +425,21 @@ jobs:
 - [x] 健康检查接口
 - [x] 数据模型设计（DO）
 - [x] ER 图设计
-- [x] 日志组件
-- [ ] 领域模型实现
-- [ ] 仓储接口定义
-- [ ] 应用服务实现
-- [ ] 用户认证实现
-- [ ] 业务接口开发
-- [ ] 数据库集成
+- [x] 日志组件（logger）
+- [x] 用户领域模型实现
+  - [x] 用户实体（Entity）
+  - [x] 值对象（Email, Password, Role）
+  - [x] 领域错误定义
+  - [x] 领域服务（UserDomainService）
+- [x] 用户仓储接口和实现
+- [x] 密码哈希（bcrypt）
+- [x] JWT Token 工具
+- [x] 数据库配置和连接
+- [x] 用户 HTTP Handler
+- [ ] 待办事项领域模型
+- [ ] 每日笔记领域模型
+- [ ] 应用服务层（Application）
+- [ ] 完整的业务接口开发
 - [ ] 单元测试
 - [ ] API 文档
 

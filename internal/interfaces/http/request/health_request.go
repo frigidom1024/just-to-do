@@ -1,4 +1,4 @@
-package healthrequest
+package request
 
 type HealthRequest struct {
 }
