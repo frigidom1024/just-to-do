@@ -26,8 +26,8 @@ type UserRepository struct {
 }
 
 // NewUserRepository 创建用户仓储
-func NewUserRepository(db Executor) *UserRepository {
-	return &UserRepository{db: db}
+func NewUserRepository() *UserRepository {
+	return &UserRepository{db: GetClient()}
 }
 
 // ==================== 查询操作实现 ====================

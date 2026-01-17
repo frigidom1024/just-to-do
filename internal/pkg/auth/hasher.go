@@ -24,3 +24,7 @@ func (h *Hasher) Verify(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
+
+func NewHasher() *Hasher {
+	return &Hasher{}
+}

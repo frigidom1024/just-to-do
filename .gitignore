@@ -36,3 +36,20 @@ coverage.html
 # Air live reload
 .air.toml
 tmp/
+
+# Configuration files with secrets
+config/config.yaml
+config/config.yml
+config/*.local.yaml
+config/*.local.yml
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml

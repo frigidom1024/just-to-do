@@ -3,7 +3,10 @@
     "allow": [
       "Bash(tree:*)",
       "Bash(go build:*)",
-      "Skill(review-code)"
+      "Skill(review-code)",
+      "Bash(go vet:*)",
+      "Bash(git add:*)",
+      "Bash(chmod:*)"
     ]
   }
 }

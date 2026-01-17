@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"time"
 
 	"todolist/internal/infrastructure/config"
@@ -15,6 +16,20 @@ import (
 // 封装数据库操作，提供简洁的 API
 type Client struct {
 	db *sqlx.DB
+}
+
+var ClientInstance *Client
+var once sync.Once
+
+func GetClient() *Client {
+	once.Do(func() {
+		client, err := NewClient()
+		if err != nil {
+			panic(err)
+		}
+		ClientInstance = client
+	})
+	return ClientInstance
 }
 
 // NewClient 创建数据库客户端
@@ -59,6 +74,24 @@ func (c *Client) GetDB() *sqlx.DB {
 }
 
 // ==================== 查询操作 ====================
+
+// SelectContext 实现 Executor 接口 - 查询多行数据
+func (c *Client) SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
+	return c.db.SelectContext(ctx, dest, query, args...)
+}
+
+// GetContext 实现 Executor 接口 - 查询单行数据
+func (c *Client) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
+	return c.db.GetContext(ctx, dest, query, args...)
+}
+
+// ExecContext 实现 Executor 接口 - 执行 SQL 语句
+func (c *Client) ExecContext(ctx context.Context, query string, args ...interface{}) (interface {
+	LastInsertId() (int64, error)
+	RowsAffected() (int64, error)
+}, error) {
+	return c.db.ExecContext(ctx, query, args...)
+}
 
 // Query 查询多行数据并映射到切片
 // dest: 目标切片的指针，如 &[]UserDO{}
