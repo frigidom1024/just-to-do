@@ -246,12 +246,20 @@ func (s *Service) ChangeUserStatus(ctx context.Context, userID int64, status Use
 	return s.repo.Save(ctx, user)
 }
 
-// DeleteUser 删除用户
-func (s *Service) DeleteUser(ctx context.Context, userID int64, soft bool) error {
-	if soft {
-		return s.repo.SoftDelete(ctx, userID)
-	}
+// DeleteUser 删除用户（硬删除）。
+//
+// 此操作会永久删除用户数据，不可恢复。
+// 如需软删除，请使用 SoftDeleteUser 方法。
+func (s *Service) DeleteUser(ctx context.Context, userID int64) error {
 	return s.repo.Delete(ctx, userID)
+}
+
+// SoftDeleteUser 软删除用户。
+//
+// 将用户标记为已删除，不会真正删除数据。
+// 此操作可恢复，适用于大多数场景。
+func (s *Service) SoftDeleteUser(ctx context.Context, userID int64) error {
+	return s.repo.SoftDelete(ctx, userID)
 }
 
 // isValidURL 简单的 URL 验证

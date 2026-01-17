@@ -1,6 +1,9 @@
 package logger
 
-import "log/slog"
+import (
+	"log/slog"
+	"time"
+)
 
 // String 字段构造函数
 func String(key, value string) any {
@@ -35,4 +38,11 @@ func Any(key string, value any) any {
 // Err 错误字段构造函数（key 为 "error"）
 func Err(err error) any {
 	return slog.Any("error", err)
+}
+
+// Duration 时间段字段构造函数。
+//
+// 用于记录时间间隔、超时时间等。
+func Duration(key string, value time.Duration) any {
+	return slog.Duration(key, value)
 }
