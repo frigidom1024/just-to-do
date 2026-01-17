@@ -168,16 +168,21 @@ func (c *Client) BeginTxWithOpts(ctx context.Context, opts *sql.TxOptions) (*Tx,
 	return &Tx{tx: tx}, nil
 }
 
-// Transaction 执行事务函数（自动提交/回滚）
+// Transaction 执行事务函数（自动提交/回滚）。
+//
+// 提供便捷的事务执行方式，自动处理提交和回滚。
+// 如果函数执行过程中发生 panic，会自动回滚事务并重新抛出。
+//
+// 参数：
+//   ctx - 请求上下文
+//   fn - 要在事务中执行的函数
+//
+// 返回：
+//   error - 事务执行失败或提交失败时的错误
 func (c *Client) Transaction(ctx context.Context, fn func(*Tx) error) error {
-	_, err := c.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-
 	tx, err := c.BeginTxs(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	defer func() {

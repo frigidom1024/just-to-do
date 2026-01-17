@@ -1,3 +1,7 @@
+// Package mysql 提供数据库迁移功能。
+//
+// 此包负责数据库版本管理和迁移脚本的执行，
+// 支持向上迁移和回滚操作。
 package mysql
 
 import (

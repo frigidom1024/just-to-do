@@ -16,64 +16,73 @@ import (
 	applogger "todolist/internal/pkg/logger"
 )
 
-// RegisterUser 用户注册应用服务
+// UserApplicationService 用户应用服务。
 //
-// 职责：
-//  1. 参数验证与转换
-//  2. 调用领域服务
-//  3. 记录业务日志
-//  4. 响应转换
-func RegisterUser(ctx context.Context, req request.RegisterUserRequest) (response.UserResponse, error) {
+// 负责用户相关用例的编排，包括注册、登录、
+// 密码管理等功能。此服务不包含业务逻辑，
+// 所有业务规则都在领域层实现。
+//
+// 通过依赖注入接收领域服务，遵循依赖倒置原则。
+type UserApplicationService struct {
+	userService user.UserService
+}
+
+// NewUserApplicationService 创建用户应用服务。
+//
+// 参数：
+//   userService - 用户领域服务（通过依赖注入传入）
+//
+// 返回：
+//   *UserApplicationService - 应用服务实例
+func NewUserApplicationService(userService user.UserService) *UserApplicationService {
+	return &UserApplicationService{
+		userService: userService,
+	}
+}
+
+// RegisterUser 用户注册用例。
+//
+// 此用例包括以下步骤：
+// 1. 调用领域服务执行业务逻辑
+// 2. 记录业务日志
+//
+// 注意：值对象的验证应由调用方（Handler 层）完成。
+//
+// 参数：
+//   ctx - 请求上下文
+//   username - 用户名值对象（已验证）
+//   email - 邮箱值对象（已验证）
+//   password - 密码值对象（已验证）
+//
+// 返回：
+//   user.UserEntity - 注册成功的用户实体
+//   error - 注册失败时的错误
+func (s *UserApplicationService) RegisterUser(
+	ctx context.Context,
+	username user.Username,
+	email user.Email,
+	password user.Password,
+) (user.UserEntity, error) {
 	startTime := time.Now()
 
 	// 记录请求开始
 	applogger.InfoContext(ctx, "开始处理用户注册请求",
-		applogger.String("username", req.Username),
-		applogger.String("email", req.Email),
+		applogger.String("username", username.String()),
+		applogger.String("email", email.String()),
 	)
 
-	// 1. 参数验证与转换（值对象创建）
-	username, err := user.NewUsername(req.Username)
-	if err != nil {
-		applogger.WarnContext(ctx, "用户名验证失败",
-			applogger.String("username", req.Username),
-			applogger.Err(err),
-		)
-		return response.UserResponse{}, err
-	}
-
-	email, err := user.NewEmail(req.Email)
-	if err != nil {
-		applogger.WarnContext(ctx, "邮箱验证失败",
-			applogger.String("email", req.Email),
-			applogger.Err(err),
-		)
-		return response.UserResponse{}, err
-	}
-
-	password, err := user.NewPassword(req.Password)
-	if err != nil {
-		applogger.WarnContext(ctx, "密码验证失败",
-			applogger.Err(err),
-		)
-		return response.UserResponse{}, err
-	}
-
-	// 2. 初始化领域服务（未来可以改为依赖注入）
-	service := user.NewService(mysql.NewUserRepository(), auth.NewHasher())
-
-	// 3. 调用领域服务执行业务逻辑
-	userEntity, err := service.RegisterUser(ctx, username, email, password)
+	// 调用领域服务执行业务逻辑
+	userEntity, err := s.userService.RegisterUser(ctx, username, email, password)
 	if err != nil {
 		applogger.ErrorContext(ctx, "用户注册失败",
-			applogger.String("username", req.Username),
-			applogger.String("email", req.Email),
+			applogger.String("username", username.String()),
+			applogger.String("email", email.String()),
 			applogger.Err(err),
 		)
-		return response.UserResponse{}, err
+		return nil, err
 	}
 
-	// 4. 记录成功日志
+	// 记录成功日志
 	duration := time.Since(startTime)
 	applogger.InfoContext(ctx, "用户注册成功",
 		applogger.Int64("user_id", userEntity.GetID()),
@@ -81,14 +90,134 @@ func RegisterUser(ctx context.Context, req request.RegisterUserRequest) (respons
 		applogger.Duration("duration_ms", duration),
 	)
 
-	// 5. 响应转换
-	return response.UserResponse{
-		ID:       userEntity.GetID(),
-		Username: userEntity.GetUsername(),
-		Email:    userEntity.GetEmail(),
-		AvatarURL: userEntity.GetAvatarURL(),
-		Status:   string(userEntity.GetStatus()),
-		CreatedAt: userEntity.GetCreatedAt(),
-		UpdatedAt: userEntity.GetUpdatedAt(),
-	}, nil
+	return userEntity, nil
+}
+
+// AuthenticateUser 用户认证用例。
+//
+// 参数：
+//   ctx - 请求上下文
+//   email - 邮箱值对象
+//   password - 密码值对象
+//
+// 返回：
+//   user.UserEntity - 认证成功的用户实体
+//   error - 认证失败时的错误
+func (s *UserApplicationService) AuthenticateUser(
+	ctx context.Context,
+	email user.Email,
+	password user.Password,
+) (user.UserEntity, error) {
+	applogger.InfoContext(ctx, "开始用户认证",
+		applogger.String("email", email.String()))
+
+	userEntity, err := s.userService.AuthenticateUser(ctx, email, password)
+	if err != nil {
+		// 认证失败是正常业务场景，使用 Info 级别
+		applogger.InfoContext(ctx, "用户认证失败",
+			applogger.String("email", email.String()))
+		return nil, err
+	}
+
+	applogger.InfoContext(ctx, "用户认证成功",
+		applogger.Int64("user_id", userEntity.GetID()),
+		applogger.String("username", userEntity.GetUsername()))
+
+	return userEntity, nil
+}
+
+// ChangePassword 修改密码用例。
+//
+// 参数：
+//   ctx - 请求上下文
+//   userID - 用户 ID
+//   oldPassword - 旧密码值对象
+//   newPassword - 新密码值对象
+//
+// 返回：
+//   error - 修改失败时的错误
+func (s *UserApplicationService) ChangePassword(
+	ctx context.Context,
+	userID int64,
+	oldPassword, newPassword user.Password,
+) error {
+	applogger.InfoContext(ctx, "开始修改密码",
+		applogger.Int64("user_id", userID))
+
+	err := s.userService.ChangePassword(ctx, userID, oldPassword, newPassword)
+	if err != nil {
+		applogger.ErrorContext(ctx, "修改密码失败",
+			applogger.Int64("user_id", userID),
+			applogger.Err(err))
+		return err
+	}
+
+	applogger.InfoContext(ctx, "密码修改成功",
+		applogger.Int64("user_id", userID))
+
+	return nil
+}
+
+// UpdateEmail 更新邮箱用例。
+//
+// 参数：
+//   ctx - 请求上下文
+//   userID - 用户 ID
+//   newEmail - 新邮箱值对象
+//
+// 返回：
+//   error - 更新失败时的错误
+func (s *UserApplicationService) UpdateEmail(
+	ctx context.Context,
+	userID int64,
+	newEmail user.Email,
+) error {
+	applogger.InfoContext(ctx, "开始更新邮箱",
+		applogger.Int64("user_id", userID),
+		applogger.String("new_email", newEmail.String()))
+
+	err := s.userService.UpdateEmail(ctx, userID, newEmail)
+	if err != nil {
+		applogger.ErrorContext(ctx, "更新邮箱失败",
+			applogger.Int64("user_id", userID),
+			applogger.Err(err))
+		return err
+	}
+
+	applogger.InfoContext(ctx, "邮箱更新成功",
+		applogger.Int64("user_id", userID))
+
+	return nil
+}
+
+// UpdateAvatar 更新头像用例。
+//
+// 参数：
+//   ctx - 请求上下文
+//   userID - 用户 ID
+//   avatarURL - 头像 URL
+//
+// 返回：
+//   error - 更新失败时的错误
+func (s *UserApplicationService) UpdateAvatar(
+	ctx context.Context,
+	userID int64,
+	avatarURL string,
+) error {
+	applogger.InfoContext(ctx, "开始更新头像",
+		applogger.Int64("user_id", userID),
+		applogger.String("avatar_url", avatarURL))
+
+	err := s.userService.UpdateAvatar(ctx, userID, avatarURL)
+	if err != nil {
+		applogger.ErrorContext(ctx, "更新头像失败",
+			applogger.Int64("user_id", userID),
+			applogger.Err(err))
+		return err
+	}
+
+	applogger.InfoContext(ctx, "头像更新成功",
+		applogger.Int64("user_id", userID))
+
+	return nil
 }

@@ -2,6 +2,8 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"todolist/internal/domain/user"
@@ -261,11 +263,25 @@ func (r *UserRepository) toEntities(users []do.User) []user.UserEntity {
 	return entities
 }
 
-// handleNotFoundError 处理查询未找到错误
+// handleNotFoundError 处理查询未找到错误。
+//
+// 使用 errors.Is 检查 sql.ErrNoRows，而不是字符串比较。
+// 当记录不存在时，返回领域定义的 ErrUserNotFound 错误。
+//
+// 参数：
+//   err - 原始错误
+//   field - 查询字段名
+//   value - 查询值
+//
+// 返回：
+//   error - 包装后的错误或 nil
 func (r *UserRepository) handleNotFoundError(err error, field string, value interface{}) error {
-	// 判断是否为 "no rows in result set" 错误
-	if err != nil && err.Error() == "sql: no rows in result set" {
-		return nil
+	if err != nil {
+		// 使用 errors.Is 检查错误类型
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("user not found by %s %v: %w", field, value, user.ErrUserNotFound)
+		}
+		return fmt.Errorf("failed to find user by %s %v: %w", field, value, err)
 	}
-	return fmt.Errorf("failed to find user by %s %v: %w", field, value, err)
+	return nil
 }
