@@ -1,3 +1,7 @@
+// Package response 提供 HTTP 响应的 DTO 结构。
+//
+// 所有的响应结构都用于序列化为 JSON 返回给客户端。
+// 这些结构与领域实体分离，避免领域模型泄露到接口层。
 package response
 
 import (

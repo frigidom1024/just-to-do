@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"todolist/internal/domain/user"
@@ -10,6 +11,22 @@ import (
 	"todolist/internal/pkg/auth"
 	"todolist/internal/pkg/logger"
 )
+
+const (
+	// MaxRequestBodySize HTTP 请求体最大大小（1MB）
+	MaxRequestBodySize = 1 << 20
+)
+
+// 认证上下文键
+type contextKey string
+
+const (
+	// UserIDKey 用户ID上下文键
+	UserIDKey contextKey = "user_id"
+)
+
+// ErrUnauthorized 未授权错误
+var ErrUnauthorized = errors.New("unauthorized: missing or invalid authentication")
 
 // UserHandler 用户 HTTP 处理器。
 //
@@ -48,12 +65,15 @@ func NewUserHandler(userService user.UserService, tokenTool auth.TokenTool) *Use
 func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// 限制请求体大小
+	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBodySize)
+
 	// 解析请求
 	var req request.RegisterUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.ErrorContext(ctx, "解析注册请求失败",
 			logger.Err(err))
-		http.Error(w, "Invalid request format", http.StatusBadRequest)
+		respondWithError(w, http.StatusBadRequest, "Invalid request format")
 		return
 	}
 
@@ -124,6 +144,9 @@ func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// 限制请求体大小
+	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBodySize)
+
 	// 解析请求
 	var req request.LoginUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -158,10 +181,9 @@ func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	// 认证用户
 	userEntity, err := h.userService.AuthenticateUser(ctx, email, password)
 	if err != nil {
-		logger.WarnContext(ctx, "用户认证失败",
-			logger.String("email", req.Email),
-			// 不记录密码
-			logger.Err(err))
+		// 认证失败是正常业务场景，使用 Info 而非 Warn
+		logger.InfoContext(ctx, "用户认证失败",
+			logger.String("email", req.Email))
 		respondWithError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
@@ -206,8 +228,16 @@ func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// TODO: 从 Token 中获取 userID
-	userID := int64(1) // 临时硬编码
+	// 从上下文获取 userID（需要认证中间件设置）
+	userID, ok := ctx.Value(UserIDKey).(int64)
+	if !ok || userID == 0 {
+		logger.ErrorContext(ctx, "未认证的用户尝试修改密码")
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	// 限制请求体大小
+	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBodySize)
 
 	// 解析请求
 	var req request.ChangePasswordRequest
@@ -269,7 +299,14 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 func respondWithJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(payload)
+
+	// 处理 JSON 编码错误
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		// 响应已经写入，只能记录日志
+		logger.Error("JSON 编码失败",
+			logger.Int("status", status),
+			logger.Err(err))
+	}
 }
 
 // respondWithError 返回错误响应。

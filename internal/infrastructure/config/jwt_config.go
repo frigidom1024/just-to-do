@@ -9,6 +9,17 @@ import (
 	"todolist/internal/pkg/logger"
 )
 
+const (
+	// MinJWTSecretKeyLength JWT 密钥最小长度（32字符）
+	MinJWTSecretKeyLength = 32
+
+	// MinJWTExpiration JWT Token 最小过期时间（1分钟）
+	MinJWTExpiration = time.Minute
+
+	// MaxJWTExpiration JWT Token 最大过期时间（30天）
+	MaxJWTExpiration = time.Hour * 24 * 30
+)
+
 // JWTConfig JWT 配置接口。
 //
 // 提供 JWT Token 签名和验证所需的配置参数。
@@ -107,14 +118,15 @@ func validateJWTConfig(cfg *jwtConfig) error {
 	if cfg.secretKey == "" {
 		return fmt.Errorf("jwt secret_key cannot be empty")
 	}
-	if len(cfg.secretKey) < 32 {
-		return fmt.Errorf("jwt secret_key must be at least 32 characters for security (current: %d)", len(cfg.secretKey))
+	if len(cfg.secretKey) < MinJWTSecretKeyLength {
+		return fmt.Errorf("jwt secret_key must be at least %d characters for security (current: %d)",
+			MinJWTSecretKeyLength, len(cfg.secretKey))
 	}
-	if cfg.expireDuration < time.Minute {
-		return fmt.Errorf("jwt expire_duration must be at least 1 minute")
+	if cfg.expireDuration < MinJWTExpiration {
+		return fmt.Errorf("jwt expire_duration must be at least %s", MinJWTExpiration)
 	}
-	if cfg.expireDuration > time.Hour*24*30 {
-		return fmt.Errorf("jwt expire_duration cannot exceed 30 days")
+	if cfg.expireDuration > MaxJWTExpiration {
+		return fmt.Errorf("jwt expire_duration cannot exceed %s", MaxJWTExpiration)
 	}
 	return nil
 }
