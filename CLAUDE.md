@@ -1,0 +1,2 @@
+- internal\pkg\logger\CONVENTIONS.md 在写代码时遵循这个日志规则
+- 编程时需要采用DDD设计思想

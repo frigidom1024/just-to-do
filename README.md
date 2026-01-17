@@ -4,18 +4,19 @@
 
 一个基于 DDD（领域驱动设计）架构的待办事项后端服务，提供以下功能：
 
-- 创建待办事项（Todo）
-- 设置预计时间/执行时间段、实际时间
-- 支持优先级设置
-- 添加备注和笔记
-- 每日笔记书写
-- Markdown 格式导出
+- **用户管理**：用户注册、登录、认证
+- **待办事项管理**：创建待办事项、设置预计时间/执行时间段、实际时间
+- **优先级设置**：支持 low/medium/high 三种优先级
+- **备注功能**：为待办事项添加多条备注
+- **每日笔记**：每日笔记书写和管理
+- **Markdown 导出**：支持导出为 Markdown 格式
 
 ## 技术栈
 
 - **语言**：Go 1.25.5
 - **Web框架**：net/http
-- **数据库**：MySQL
+- **数据库**：MySQL 8.0+
+- **数据库驱动**：sqlx + go-sql-driver/mysql
 - **架构模式**：DDD（领域驱动设计）
 - **容器化**：Docker
 - **CI/CD**：GitHub Actions
@@ -31,53 +32,35 @@ todo-service/
 ├── internal/
 │   ├── interfaces/              # 接口层（Adapter）
 │   │   ├── http/
-│   │   │   ├── handler/
-│   │   │   │   ├── todo_handler.go
-│   │   │   │   └── daily_note_handler.go
-│   │   │   └── router.go
-│   │   └── dto/
-│   │       ├── todo_dto.go
-│   │       └── daily_note_dto.go
+│   │   │   ├── handler/         # HTTP 处理器
+│   │   │   ├── request/         # 请求 DTO
+│   │   │   └── response/        # 响应 DTO
+│   │   ├── do/                  # 数据对象（Data Object）
+│   │   │   ├── user.go
+│   │   │   ├── daily_note.go
+│   │   │   ├── todo.go
+│   │   │   └── note.go
+│   │   └── dto/                 # 数据传输对象
 │   │
 │   ├── application/             # 应用层（Use Case）
-│   │   ├── todo/
-│   │   │   ├── create_todo.go
-│   │   │   ├── complete_todo.go
-│   │   │   ├── update_time.go
-│   │   │   └── add_note.go
-│   │   ├── daily_note/
-│   │   │   ├── write_daily_note.go
-│   │   │   └── get_daily_note.go
-│   │   └── export/
-│   │       └── markdown_export.go
+│   │   ├── user/                # 用户用例
+│   │   ├── todo/                # 待办事项用例
+│   │   ├── daily_note/          # 每日笔记用例
+│   │   └── export/              # 导出用例
 │   │
 │   ├── domain/                  # 领域层（核心）
-│   │   ├── todo/
-│   │   │   ├── todo.go           # 聚合根
-│   │   │   ├── note.go
-│   │   │   ├── priority.go       # 值对象
-│   │   │   ├── time_range.go     # 值对象
-│   │   │   └── repository.go     # TodoRepository 接口
-│   │   ├── daily_note/
-│   │   │   ├── daily_note.go
-│   │   │   └── repository.go
-│   │   └── common/
-│   │       ├── id.go
-│   │       └── time.go
+│   │   ├── user/                # 用户领域
+│   │   ├── todo/                # 待办事项领域
+│   │   ├── daily_note/          # 每日笔记领域
+│   │   └── common/              # 通用领域概念
 │   │
 │   ├── infrastructure/          # 基础设施层
-│   │   ├── persistence/
-│   │   │   ├── mysql/
-│   │   │   │   ├── todo_repo.go
-│   │   │   │   └── daily_note_repo.go
-│   │   │   └── migrations/
-│   │   ├── markdown/
-│   │   │   └── renderer.go
-│   │   └── config/
-│   │       └── config.go
+│   │   ├── persistence/         # 数据持久化
+│   │   ├── markdown/            # Markdown 渲染
+│   │   └── config/              # 配置管理
 │   │
-│   └── bootstrap/
-│       └── wire.go               # 依赖注入
+│   └── pkg/                     # 内部包
+│       └── logger/              # 日志组件
 │
 ├── docs/
 │   ├── architecture.md
@@ -106,6 +89,7 @@ flowchart TB
 
     %% ===== 应用层 =====
     subgraph Application["应用层 Application"]
+        UserApp[User Application Service]
         TodoApp[Todo Application Service]
         DailyNoteApp[DailyNote Application Service]
         ExportApp[Markdown Export Service]
@@ -113,6 +97,10 @@ flowchart TB
 
     %% ===== 领域层 =====
     subgraph Domain["领域层 Domain"]
+        subgraph UserDomain["User 领域"]
+            User[User 聚合根]
+        end
+
         subgraph TodoDomain["Todo 领域"]
             Todo[Todo 聚合根]
             Priority[Priority 值对象]
@@ -124,6 +112,7 @@ flowchart TB
             DailyNote[DailyNote 聚合根]
         end
 
+        UserRepo[UserRepository 接口]
         TodoRepo[TodoRepository 接口]
         DailyNoteRepo[DailyNoteRepository 接口]
     end
@@ -136,11 +125,15 @@ flowchart TB
     end
 
     %% ===== 调用关系 =====
+    API --> UserApp
     API --> TodoApp
     API --> DailyNoteApp
     API --> ExportApp
 
     CLI --> ExportApp
+
+    UserApp --> User
+    UserApp --> UserRepo
 
     TodoApp --> Todo
     TodoApp --> TodoRepo
@@ -155,6 +148,7 @@ flowchart TB
     RepoImpl --> DB
 
     %% ===== 接口实现关系（关键修复点）=====
+    RepoImpl -.-> UserRepo
     RepoImpl -.-> TodoRepo
     RepoImpl -.-> DailyNoteRepo
 
@@ -198,7 +192,24 @@ go build -o bin/server cmd/server/main.go
 ./bin/server
 ```
 
-## API 端点（规划中）
+## API 端点
+
+### 健康检查
+
+| 方法 | 路径 | 描述 |
+| --- | --- | --- |
+| GET | /health | 健康检查 |
+
+### 用户管理
+
+| 方法 | 路径 | 描述 |
+| --- | --- | --- |
+| POST | /api/users/register | 用户注册 |
+| POST | /api/users/login | 用户登录 |
+| GET | /api/users/profile | 获取用户信息 |
+| PUT | /api/users/profile | 更新用户信息 |
+
+### 待办事项
 
 | 方法 | 路径 | 描述 |
 | --- | --- | --- |
@@ -207,7 +218,26 @@ go build -o bin/server cmd/server/main.go
 | GET | /api/todos/:id | 获取单个待办 |
 | PUT | /api/todos/:id | 更新待办事项 |
 | DELETE | /api/todos/:id | 删除待办事项 |
-| GET | /api/todos/export | 导出 Markdown |
+| POST | /api/todos/:id/notes | 添加备注 |
+| GET | /api/todos/:id/notes | 获取备注列表 |
+
+### 每日笔记
+
+| 方法 | 路径 | 描述 |
+| --- | --- | --- |
+| POST | /api/daily-notes | 创建每日笔记 |
+| GET | /api/daily-notes | 获取每日笔记列表 |
+| GET | /api/daily-notes/:id | 获取单个笔记 |
+| PUT | /api/daily-notes/:id | 更新每日笔记 |
+| DELETE | /api/daily-notes/:id | 删除每日笔记 |
+| GET | /api/daily-notes/:date | 根据日期获取笔记 |
+
+### 导出
+
+| 方法 | 路径 | 描述 |
+| --- | --- | --- |
+| GET | /api/export/daily-notes/:id | 导出每日笔记为 Markdown |
+| GET | /api/export/todos/:id | 导出待办事项为 Markdown |
 
 ## Docker 部署
 
@@ -339,10 +369,17 @@ jobs:
 
 ### 后端开发
 
-- [ ] 领域模型设计
+- [x] 项目结构搭建
+- [x] HTTP 基础框架
+- [x] 健康检查接口
+- [x] 数据模型设计（DO）
+- [x] ER 图设计
+- [x] 日志组件
+- [ ] 领域模型实现
 - [ ] 仓储接口定义
 - [ ] 应用服务实现
-- [ ] HTTP 接口开发
+- [ ] 用户认证实现
+- [ ] 业务接口开发
 - [ ] 数据库集成
 - [ ] 单元测试
 - [ ] API 文档
@@ -354,3 +391,18 @@ jobs:
 - [ ] GitHub Actions 工作流
 - [ ] CI/CD Pipeline 调试
 - [ ] 生产环境部署配置
+
+## 数据库设计
+
+### ER 图
+
+项目包含以下核心实体：
+
+- **用户（users）**：用户账户信息
+- **每日笔记（daily_notes）**：用户的每日笔记
+- **待办事项（todos）**：关联到每日笔记的待办事项
+- **备注（notes）**：待办事项的备注信息
+
+数据层级关系：用户 → 每日笔记 → 待办事项 → 备注
+
+详细的 ER 图请参考：[docs/arch/er.puml](docs/arch/er.puml)
