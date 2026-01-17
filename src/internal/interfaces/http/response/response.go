@@ -53,6 +53,22 @@ func WriteInternalError(w http.ResponseWriter, message string) {
 	})
 }
 
+// WriteUnauthorized 写入未授权响应（401）
+func WriteUnauthorized(w http.ResponseWriter, message string) {
+	WriteJSON(w, http.StatusUnauthorized, BaseResponse[struct{}]{
+		Code:    401,
+		Message: message,
+	})
+}
+
+// WriteForbidden 写入禁止访问响应（403）
+func WriteForbidden(w http.ResponseWriter, message string) {
+	WriteJSON(w, http.StatusForbidden, BaseResponse[struct{}]{
+		Code:    403,
+		Message: message,
+	})
+}
+
 // WriteError 根据错误类型写入响应
 func WriteError(w http.ResponseWriter, err error) {
 	WriteInternalError(w, err.Error())

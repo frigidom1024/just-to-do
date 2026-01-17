@@ -1,16 +1,19 @@
+// Package user 提供用户管理的应用服务。
+//
+// 此层负责编排用例（Use Case），不包含业务逻辑。
+// 主要职责：
+//   - 协调领域对象和基础设施
+//   - 管理事务边界
+//   - 记录业务日志
+//   - 进行响应转换
 package user
 
 import (
 	"context"
 	"time"
 
-	"todolist/internal/infrastructure/persistence/mysql"
-	"todolist/internal/interfaces/http/request"
-	"todolist/internal/interfaces/http/response"
-	applogger "todolist/internal/pkg/logger"
-
 	"todolist/internal/domain/user"
-	"todolist/internal/pkg/auth"
+	applogger "todolist/internal/pkg/logger"
 )
 
 // RegisterUser 用户注册应用服务
