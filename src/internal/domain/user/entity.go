@@ -25,6 +25,8 @@ type UserEntity interface {
 	GetCreatedAt() time.Time
 	GetUpdatedAt() time.Time
 
+	//附加属性
+
 	// Business Methods 业务方法
 	VerifyPassword(password string) error
 	UpdatePassword(hash string) error

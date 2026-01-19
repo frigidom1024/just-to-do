@@ -69,10 +69,12 @@ type MessageResponse struct {
 // ToUserResponse 将用户实体转换为响应对象。
 //
 // 参数：
-//   userEntity - 用户领域实体
+//
+//	userEntity - 用户领域实体
 //
 // 返回：
-//   UserResponse - HTTP 响应对象
+//
+//	UserResponse - HTTP 响应对象
 func ToUserResponse(userEntity user.UserEntity) UserResponse {
 	return UserResponse{
 		ID:        userEntity.GetID(),

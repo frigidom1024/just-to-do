@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"todolist/internal/interfaces/http/middleware"
 	request "todolist/internal/interfaces/http/request"
 	response "todolist/internal/interfaces/http/response"
 
@@ -11,6 +12,35 @@ import (
 	"todolist/internal/infrastructure/persistence/mysql"
 	appauth "todolist/internal/pkg/auth"
 )
+
+func LoginUserHandler(ctx context.Context, req request.LoginUserRequest) (response.LoginResponse, error) {
+	// 1. 初始化服务层
+	repo := mysql.NewUserRepository()
+	hasher := appauth.NewHasher()
+	userService := appuser.NewService(repo, hasher)
+	userAppService := user.NewUserApplicationService(userService)
+
+	// 2. 调用应用服务登录
+	userDTO, err := userAppService.Login(ctx, req.Email, req.Password)
+	if err != nil {
+		return response.LoginResponse{}, err
+	}
+
+	token, err := middleware.GenerateToken(userDTO)
+	// 3. 返回登录响应
+	return response.LoginResponse{
+		Token: token,
+		User: response.UserResponse{
+			ID:        userDTO.ID,
+			Username:  userDTO.Username,
+			Email:     userDTO.Email,
+			AvatarURL: userDTO.AvatarURL,
+			Status:    userDTO.Status,
+			CreatedAt: userDTO.CreatedAt,
+			UpdatedAt: userDTO.UpdatedAt,
+		},
+	}, nil
+}
 
 // RegisterUserHandler 用户注册处理器
 //
@@ -62,14 +92,14 @@ func ChangePasswordHandler(ctx context.Context, req request.ChangePasswordReques
 	userService := appuser.NewService(repo, hasher)
 	userAppService := user.NewUserApplicationService(userService)
 
-	// 2. 从上下文中获取用户 ID（由认证中间件设置）
-	userID, ok := ctx.Value("user_id").(int64)
-	if !ok || userID == 0 {
+	// 2. 从上下文中获取用户信息（由认证中间件设置）
+	user, ok := middleware.GetDataFromContext(ctx)
+	if !ok {
 		return response.MessageResponse{}, errors.New("unauthorized: invalid user context")
 	}
 
 	// 3. 调用应用服务修改密码
-	err := userAppService.ChangePassword(ctx, userID, req.OldPassword, req.NewPassword)
+	err := userAppService.ChangePassword(ctx, user.UserID, req.OldPassword, req.NewPassword)
 	if err != nil {
 		return response.MessageResponse{}, err
 	}
@@ -92,14 +122,14 @@ func UpdateEmailHandler(ctx context.Context, req request.UpdateEmailRequest) (re
 	userService := appuser.NewService(repo, hasher)
 	userAppService := user.NewUserApplicationService(userService)
 
-	// 2. 从上下文中获取用户 ID（由认证中间件设置）
-	userID, ok := ctx.Value("user_id").(int64)
-	if !ok || userID == 0 {
+	// 2. 从上下文中获取用户信息（由认证中间件设置）
+	user, ok := middleware.GetDataFromContext(ctx)
+	if !ok {
 		return response.MessageResponse{}, errors.New("unauthorized: invalid user context")
 	}
 
 	// 3. 调用应用服务更新邮箱
-	err := userAppService.UpdateEmail(ctx, userID, req.NewEmail)
+	err := userAppService.UpdateEmail(ctx, user.UserID, req.NewEmail)
 	if err != nil {
 		return response.MessageResponse{}, err
 	}
@@ -122,14 +152,14 @@ func UpdateAvatarHandler(ctx context.Context, req request.UpdateAvatarRequest) (
 	userService := appuser.NewService(repo, hasher)
 	userAppService := user.NewUserApplicationService(userService)
 
-	// 2. 从上下文中获取用户 ID（由认证中间件设置）
-	userID, ok := ctx.Value("user_id").(int64)
-	if !ok || userID == 0 {
+	// 2. 从上下文中获取用户信息（由认证中间件设置）
+	user, ok := middleware.GetDataFromContext(ctx)
+	if !ok {
 		return response.MessageResponse{}, errors.New("unauthorized: invalid user context")
 	}
 
 	// 3. 调用应用服务更新头像
-	err := userAppService.UpdateAvatar(ctx, userID, req.AvatarURL)
+	err := userAppService.UpdateAvatar(ctx, user.UserID, req.AvatarURL)
 	if err != nil {
 		return response.MessageResponse{}, err
 	}

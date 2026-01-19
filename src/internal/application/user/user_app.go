@@ -19,6 +19,8 @@ import (
 )
 
 type UserApplicationService interface {
+	Login(ctx context.Context, email string, pwd string) (*dto.UserDTO, error)
+
 	RegisterUser(ctx context.Context, username string, email string, password string) (*dto.UserDTO, error)
 
 	AuthenticateUser(ctx context.Context, email string, password string) (*dto.UserDTO, error)
@@ -44,14 +46,39 @@ type UserApplicationServiceImpl struct {
 // NewUserApplicationService 创建用户应用服务。
 //
 // 参数：
-//   userService - 用户领域服务（通过依赖注入传入）
+//
+//	userService - 用户领域服务（通过依赖注入传入）
 //
 // 返回：
-//   UserApplicationService - 应用服务接口
+//
+//	UserApplicationService - 应用服务接口
 func NewUserApplicationService(userService user.UserService) UserApplicationService {
 	return &UserApplicationServiceImpl{
 		userService: userService,
 	}
+}
+
+func (s *UserApplicationServiceImpl) Login(
+	ctx context.Context, email string, pwd string,
+) (*dto.UserDTO, error) {
+	emailVo, err := user.NewEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	pwdVO, err := user.NewPassword(pwd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 调用领域服务进行登录验证
+	userEntity, err := s.userService.AuthenticateUser(ctx, emailVo, pwdVO)
+	if err != nil {
+		return nil, err
+	}
+
+	// 将领域实体转换为DTO
+	userDTO := dto.ToUserDTO(userEntity)
+	return &userDTO, nil
 }
 
 // RegisterUser 用户注册用例。
@@ -69,14 +96,16 @@ func NewUserApplicationService(userService user.UserService) UserApplicationServ
 //   - 将领域实体转换为 DTO，避免泄露领域模型
 //
 // 参数：
-//   ctx - 请求上下文
-//   username - 用户名（原始字符串）
-//   email - 邮箱（原始字符串）
-//   password - 密码（原始字符串）
+//
+//	ctx - 请求上下文
+//	username - 用户名（原始字符串）
+//	email - 邮箱（原始字符串）
+//	password - 密码（原始字符串）
 //
 // 返回：
-//   *dto.UserDTO - 注册成功的用户 DTO
-//   error - 注册失败时的错误（包含验证失败和业务逻辑失败）
+//
+//	*dto.UserDTO - 注册成功的用户 DTO
+//	error - 注册失败时的错误（包含验证失败和业务逻辑失败）
 func (s *UserApplicationServiceImpl) RegisterUser(
 	ctx context.Context,
 	username string,
@@ -152,13 +181,15 @@ func (s *UserApplicationServiceImpl) RegisterUser(
 //   - 将领域实体转换为 DTO
 //
 // 参数：
-//   ctx - 请求上下文
-//   email - 邮箱（原始字符串）
-//   password - 密码（原始字符串）
+//
+//	ctx - 请求上下文
+//	email - 邮箱（原始字符串）
+//	password - 密码（原始字符串）
 //
 // 返回：
-//   *dto.UserDTO - 认证成功的用户 DTO
-//   error - 认证失败时的错误
+//
+//	*dto.UserDTO - 认证成功的用户 DTO
+//	error - 认证失败时的错误
 func (s *UserApplicationServiceImpl) AuthenticateUser(
 	ctx context.Context,
 	email string,
@@ -212,13 +243,15 @@ func (s *UserApplicationServiceImpl) AuthenticateUser(
 //   - 调用领域服务修改密码
 //
 // 参数：
-//   ctx - 请求上下文
-//   userID - 用户 ID
-//   oldPassword - 旧密码（原始字符串）
-//   newPassword - 新密码（原始字符串）
+//
+//	ctx - 请求上下文
+//	userID - 用户 ID
+//	oldPassword - 旧密码（原始字符串）
+//	newPassword - 新密码（原始字符串）
 //
 // 返回：
-//   error - 修改失败时的错误
+//
+//	error - 修改失败时的错误
 func (s *UserApplicationServiceImpl) ChangePassword(
 	ctx context.Context,
 	userID int64,
@@ -268,12 +301,14 @@ func (s *UserApplicationServiceImpl) ChangePassword(
 //   - 调用领域服务更新邮箱
 //
 // 参数：
-//   ctx - 请求上下文
-//   userID - 用户 ID
-//   newEmail - 新邮箱（原始字符串）
+//
+//	ctx - 请求上下文
+//	userID - 用户 ID
+//	newEmail - 新邮箱（原始字符串）
 //
 // 返回：
-//   error - 更新失败时的错误
+//
+//	error - 更新失败时的错误
 func (s *UserApplicationServiceImpl) UpdateEmail(
 	ctx context.Context,
 	userID int64,
@@ -315,12 +350,14 @@ func (s *UserApplicationServiceImpl) UpdateEmail(
 //   - 调用领域服务更新头像
 //
 // 参数：
-//   ctx - 请求上下文
-//   userID - 用户 ID
-//   avatarURL - 头像 URL（原始字符串）
+//
+//	ctx - 请求上下文
+//	userID - 用户 ID
+//	avatarURL - 头像 URL（原始字符串）
 //
 // 返回：
-//   error - 更新失败时的错误
+//
+//	error - 更新失败时的错误
 func (s *UserApplicationServiceImpl) UpdateAvatar(
 	ctx context.Context,
 	userID int64,

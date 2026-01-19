@@ -5,8 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/viper"
 	"todolist/internal/pkg/logger"
+
+	"github.com/spf13/viper"
 )
 
 const (
@@ -53,13 +54,18 @@ var (
 // 如果配置未正确加载，将使用默认值并记录警告日志。
 //
 // 返回：
-//   JWTConfig - JWT 配置接口实例
-//   error - 配置加载或验证失败时的错误
-func GetJWTConfig() (JWTConfig, error) {
+//
+//	JWTConfig - JWT 配置接口实例
+//	error - 配置加载或验证失败时的错误
+func GetJWTConfig() JWTConfig {
 	jwtConfigOnce.Do(func() {
 		jwtConfigInstance, jwtConfigErr = loadJWTConfig()
 	})
-	return jwtConfigInstance, jwtConfigErr
+	if jwtConfigErr != nil {
+		panic(fmt.Sprintf("JWT配置获取失败: %s", jwtConfigErr.Error()))
+	}
+
+	return jwtConfigInstance
 }
 
 // loadJWTConfig 加载并验证 JWT 配置。
@@ -67,8 +73,9 @@ func GetJWTConfig() (JWTConfig, error) {
 // 从 Viper 加载配置，设置默认值，并进行验证。
 //
 // 返回：
-//   JWTConfig - 加载后的配置实例
-//   error - 配置验证失败时的错误
+//
+//	JWTConfig - 加载后的配置实例
+//	error - 配置验证失败时的错误
 func loadJWTConfig() (JWTConfig, error) {
 	cfg := &jwtConfig{}
 
@@ -113,7 +120,8 @@ func setJWTDefaults(cfg *jwtConfig) {
 // 检查密钥长度和过期时间范围。
 //
 // 返回：
-//   error - 配置无效时的错误信息
+//
+//	error - 配置无效时的错误信息
 func validateJWTConfig(cfg *jwtConfig) error {
 	if cfg.secretKey == "" {
 		return fmt.Errorf("jwt secret_key cannot be empty")
