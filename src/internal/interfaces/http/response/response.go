@@ -2,16 +2,19 @@ package response
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"todolist/internal/pkg/domainerr"
 )
 
 var TypeToHTTP = map[domainerr.ErrorType]int{
-	domainerr.ValidationError: http.StatusBadRequest,
-	domainerr.NotFoundError:   http.StatusNotFound,
-	domainerr.PermissionError: http.StatusForbidden,
-	domainerr.InternalError:   http.StatusInternalServerError,
+	domainerr.ValidationError:      http.StatusBadRequest,
+	domainerr.NotFoundError:        http.StatusNotFound,
+	domainerr.PermissionError:      http.StatusForbidden,
+	domainerr.ConflictError:        http.StatusConflict,
+	domainerr.AuthenticationError:  http.StatusUnauthorized,
+	domainerr.InternalError:        http.StatusInternalServerError,
 }
 
 // Data 约束：可序列化为 JSON 的数据类型
@@ -53,22 +56,40 @@ func WriteBadRequest(w http.ResponseWriter, message string) {
 	})
 }
 
+// WriteError 写入错误响应
+// 使用 errors.As 来正确处理领域错误的类型断言
 func WriteError(w http.ResponseWriter, err error) {
-	if be, ok := err.(domainerr.BusinessError); ok {
+	var be domainerr.BusinessError
+	if errors.As(err, &be) {
 		status := TypeToHTTP[be.Type]
 
+		// 根据状态码记录不同级别的日志
+		if status >= 500 {
+			slog.Error("server error",
+				"code", be.Code,
+				"type", be.Type,
+				"message", be.Message,
+				"internal_error", be.InternalError,
+			)
+		} else {
+			slog.Warn("client error",
+				"code", be.Code,
+				"type", be.Type,
+				"message", be.Message,
+			)
+		}
+
 		WriteJSON(w, status, BaseResponse[struct{}]{
-
-			Code: status,
-
+			Code:    status,
 			Message: be.Code + ": " + be.Message,
 		})
 		return
 	}
 
-	// 处理未知错误
+	// 处理未知错误 - 记录完整错误信息但不暴露给客户端
+	slog.Error("unhandled error", "error", err)
 	WriteJSON(w, http.StatusInternalServerError, BaseResponse[struct{}]{
 		Code:    500,
-		Message: "internal server error: " + err.Error(),
+		Message: "internal server error",
 	})
 }

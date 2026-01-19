@@ -555,8 +555,10 @@ var (
 | ErrorType 枚举 | HTTP 状态 | 场景 |
 |----------------|-----------|------|
 | `ValidationError` | 400 | 参数验证失败、格式错误 |
-| `NotFoundError` | 404 | 资源不存在 |
+| `AuthenticationError` | 401 | 认证失败、凭证错误 |
 | `PermissionError` | 403 | 权限不足、账户状态错误 |
+| `NotFoundError` | 404 | 资源不存在 |
+| `ConflictError` | 409 | 资源冲突（如已存在） |
 | `InternalError` | 500 | 系统内部错误、数据库操作失败 |
 
 ### 错误传播
@@ -604,10 +606,12 @@ JSON 响应
 type ErrorType string
 
 const (
-    ValidationError ErrorType = "validation" // 400 Bad Request
-    NotFoundError   ErrorType = "not_found"   // 404 Not Found
-    PermissionError ErrorType = "permission"  // 403 Forbidden
-    InternalError   ErrorType = "internal_error" // 500 Internal Server Error
+    ValidationError      ErrorType = "validation"       // 400 Bad Request
+    AuthenticationError  ErrorType = "authentication"   // 401 Unauthorized
+    PermissionError      ErrorType = "permission"       // 403 Forbidden
+    NotFoundError        ErrorType = "not_found"        // 404 Not Found
+    ConflictError        ErrorType = "conflict"         // 409 Conflict
+    InternalError        ErrorType = "internal_error"   // 500 Internal Server Error
 )
 
 type BusinessError struct {
@@ -615,6 +619,11 @@ type BusinessError struct {
     Type          ErrorType   // 错误类型
     Message       string      // 错误信息
     InternalError error       // 内部错误（可选）
+}
+
+// Unwrap 支持 Go 错误链
+func (e BusinessError) Unwrap() error {
+    return e.InternalError
 }
 ```
 
@@ -884,12 +893,13 @@ func (r *mysqlUserRepository) Save(ctx context.Context, user UserEntity) error {
 
 ```go
 // src/internal/domain/user/errors.go
-var ErrUserAlreadyBanned = errors.New("user is already banned")
+import domainerr "todolist/internal/pkg/domainerr"
 
-// src/internal/domain/user/error_mapping.go
-httperrors.IsMatcher(ErrUserAlreadyBanned, func(err error) *httperrors.HTTPError {
-    return httperrors.Conflict(httperrors.CodeResourceConflict, "User is already banned")
-})
+var ErrUserAlreadyBanned = domainerr.BusinessError{
+    Code:    "USER_ALREADY_BANNED",
+    Type:    domainerr.ConflictError,
+    Message: "user is already banned",
+}
 
 // src/internal/domain/user/entity.go (已有 Ban() 方法)
 ```
@@ -963,5 +973,5 @@ mux.Handle("/api/v1/users/ban",
 - [User Domain Service](src/internal/domain/user/service.go)
 - [User Entity](src/internal/domain/user/entity.go)
 - [User Value Objects](src/internal/domain/user/value_objects.go)
-- [User Error Mapping](src/internal/domain/user/error_mapping.go)
+- [User Errors](src/internal/domain/user/errors.go)
 - [Logger README](src/internal/pkg/logger/README.md)

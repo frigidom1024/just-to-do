@@ -12,19 +12,19 @@ var (
 
 	ErrUserAlreadyExists = domainerr.BusinessError{
 		Code:    "USER_ALREADY_EXISTS",
-		Type:    domainerr.ValidationError,
+		Type:    domainerr.ConflictError,
 		Message: "user already exists",
 	}
 
 	ErrEmailAlreadyExists = domainerr.BusinessError{
 		Code:    "EMAIL_ALREADY_EXISTS",
-		Type:    domainerr.ValidationError,
+		Type:    domainerr.ConflictError,
 		Message: "email already exists",
 	}
 
 	ErrUsernameTaken = domainerr.BusinessError{
 		Code:    "USERNAME_TAKEN",
-		Type:    domainerr.ValidationError,
+		Type:    domainerr.ConflictError,
 		Message: "username already taken",
 	}
 )
@@ -33,7 +33,7 @@ var (
 var (
 	ErrInvalidCredentials = domainerr.BusinessError{
 		Code:    "INVALID_CREDENTIALS",
-		Type:    domainerr.ValidationError,
+		Type:    domainerr.AuthenticationError,
 		Message: "invalid credentials",
 	}
 
@@ -69,7 +69,7 @@ var (
 
 	ErrOldPasswordIncorrect = domainerr.BusinessError{
 		Code:    "OLD_PASSWORD_INCORRECT",
-		Type:    domainerr.ValidationError,
+		Type:    domainerr.AuthenticationError,
 		Message: "old password is incorrect",
 	}
 

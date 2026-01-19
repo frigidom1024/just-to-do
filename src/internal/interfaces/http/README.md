@@ -215,29 +215,52 @@ Wrap 封装层
 
 ## 错误处理建议
 
-### 业务错误
+### 领域错误
+使用 `domainerr.BusinessError` 定义业务错误：
+
+```go
+// domain/xxx/errors.go
+import domainerr "todolist/internal/pkg/domainerr"
+
+var ErrUserNotFound = domainerr.BusinessError{
+    Code:    "USER_NOT_FOUND",
+    Type:    domainerr.NotFoundError,
+    Message: "user not found",
+}
+
+var ErrInvalidCredentials = domainerr.BusinessError{
+    Code:    "INVALID_CREDENTIALS",
+    Type:    domainerr.AuthenticationError,
+    Message: "invalid credentials",
+}
+```
+
+### 错误类型映射
+系统自动将领域错误映射为 HTTP 状态码：
+
+| ErrorType | HTTP Status | 使用场景 |
+|-----------|-------------|---------|
+| ValidationError | 400 | 输入验证失败 |
+| AuthenticationError | 401 | 认证失败 |
+| PermissionError | 403 | 权限不足 |
+| NotFoundError | 404 | 资源不存在 |
+| ConflictError | 409 | 资源冲突 |
+| InternalError | 500 | 内部错误 |
+
+### Handler 中使用
 ```go
 func GetUser(ctx context.Context, req user.GetUserRequest) (user.UserData, error) {
     if req.ID <= 0 {
-        return user.UserData{}, fmt.Errorf("invalid user id: %d", req.ID)
+        return user.UserData{}, ErrInvalidID
     }
-    // ...
+
+    data, err := repo.FindByID(ctx, req.ID)
+    if err != nil {
+        return user.UserData{}, err  // 返回领域错误
+    }
+
+    return data, nil
 }
 ```
 
-### 自定义错误类型（可选）
-```go
-// pkg/errors/errors.go
-package errors
-
-type BusinessError struct {
-    Code    int
-    Message string
-}
-
-func (e *BusinessError) Error() string {
-    return e.Message
-}
-```
-
-然后在 `handler/handler.go` 的 `Wrap` 函数中可以检测并返回对应的 HTTP 状态码。
+`Wrap` 会自动调用 `response.WriteError` 处理错误映射和日志记录。
