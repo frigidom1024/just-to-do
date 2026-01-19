@@ -1,32 +1,114 @@
 package user
 
-import "errors"
+import domainerr "todolist/internal/pkg/domainerr"
 
 // 仓储相关错误
 var (
-	ErrUserNotFound       = errors.New("user not found")
-	ErrUserAlreadyExists  = errors.New("user already exists")
-	ErrEmailAlreadyExists = errors.New("email already exists")
-	ErrUsernameTaken      = errors.New("username already taken")
+	ErrUserNotFound = domainerr.BusinessError{
+		Code:    "USER_NOT_FOUND",
+		Type:    domainerr.NotFoundError,
+		Message: "user not found",
+	}
+
+	ErrUserAlreadyExists = domainerr.BusinessError{
+		Code:    "USER_ALREADY_EXISTS",
+		Type:    domainerr.ValidationError,
+		Message: "user already exists",
+	}
+
+	ErrEmailAlreadyExists = domainerr.BusinessError{
+		Code:    "EMAIL_ALREADY_EXISTS",
+		Type:    domainerr.ValidationError,
+		Message: "email already exists",
+	}
+
+	ErrUsernameTaken = domainerr.BusinessError{
+		Code:    "USERNAME_TAKEN",
+		Type:    domainerr.ValidationError,
+		Message: "username already taken",
+	}
 )
 
 // 业务逻辑错误
 var (
-	ErrInvalidCredentials    = errors.New("invalid credentials")
-	ErrAccountInactive       = errors.New("account is inactive")
-	ErrAccountBanned         = errors.New("account has been banned")
-	ErrPasswordTooWeak       = errors.New("password is too weak")
-	ErrPasswordMismatch      = errors.New("password does not match")
-	ErrPasswordInvalid       = errors.New("password is invalid")
-	ErrOldPasswordIncorrect  = errors.New("old password is incorrect")
-	ErrEmailInvalid          = errors.New("email format is invalid")
-	ErrUsernameInvalid       = errors.New("username format is invalid")
-	ErrAvatarURLInvalid      = errors.New("avatar URL is invalid")
+	ErrInvalidCredentials = domainerr.BusinessError{
+		Code:    "INVALID_CREDENTIALS",
+		Type:    domainerr.ValidationError,
+		Message: "invalid credentials",
+	}
+
+	ErrAccountInactive = domainerr.BusinessError{
+		Code:    "ACCOUNT_INACTIVE",
+		Type:    domainerr.PermissionError,
+		Message: "account is inactive",
+	}
+
+	ErrAccountBanned = domainerr.BusinessError{
+		Code:    "ACCOUNT_BANNED",
+		Type:    domainerr.PermissionError,
+		Message: "account has been banned",
+	}
+
+	ErrPasswordTooWeak = domainerr.BusinessError{
+		Code:    "PASSWORD_TOO_WEAK",
+		Type:    domainerr.ValidationError,
+		Message: "password is too weak",
+	}
+
+	ErrPasswordMismatch = domainerr.BusinessError{
+		Code:    "PASSWORD_MISMATCH",
+		Type:    domainerr.ValidationError,
+		Message: "password does not match",
+	}
+
+	ErrPasswordInvalid = domainerr.BusinessError{
+		Code:    "PASSWORD_INVALID",
+		Type:    domainerr.ValidationError,
+		Message: "password is invalid",
+	}
+
+	ErrOldPasswordIncorrect = domainerr.BusinessError{
+		Code:    "OLD_PASSWORD_INCORRECT",
+		Type:    domainerr.ValidationError,
+		Message: "old password is incorrect",
+	}
+
+	ErrEmailInvalid = domainerr.BusinessError{
+		Code:    "EMAIL_INVALID",
+		Type:    domainerr.ValidationError,
+		Message: "email format is invalid",
+	}
+
+	ErrUsernameInvalid = domainerr.BusinessError{
+		Code:    "USERNAME_INVALID",
+		Type:    domainerr.ValidationError,
+		Message: "username format is invalid",
+	}
+
+	ErrAvatarURLInvalid = domainerr.BusinessError{
+		Code:    "AVATAR_URL_INVALID",
+		Type:    domainerr.ValidationError,
+		Message: "avatar URL is invalid",
+	}
 )
 
 // 操作相关错误
 var (
-	ErrUserUpdateFailed  = errors.New("failed to update user")
-	ErrUserDeleteFailed  = errors.New("failed to delete user")
-	ErrUserCreateFailed  = errors.New("failed to create user")
+	ErrUserUpdateFailed = domainerr.BusinessError{
+		Code:    "USER_UPDATE_FAILED",
+		Type:    domainerr.InternalError,
+		Message: "failed to update user",
+	}
+
+	ErrUserDeleteFailed = domainerr.BusinessError{
+		Code:    "USER_DELETE_FAILED",
+		Type:    domainerr.InternalError,
+		Message: "failed to delete user",
+	}
+
+	ErrUserCreateFailed = domainerr.BusinessError{
+		Code:    "USER_CREATE_FAILED",
+		Type:    domainerr.InternalError,
+		Message: "failed to create user",
+	}
 )
