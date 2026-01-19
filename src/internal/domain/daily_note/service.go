@@ -2,7 +2,16 @@ package daily_note
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
+)
+
+const (
+	// DefaultPageSize 默认分页大小
+	DefaultPageSize = 10
+	// MaxPageSize 最大分页大小
+	MaxPageSize = 50
 )
 
 // DailyNoteService 每日笔记领域服务接口
@@ -36,6 +45,18 @@ func NewService(repo DailyNoteRepository) DailyNoteService {
 }
 
 // CreateDailyNote 创建每日笔记
+//
+// 此方法会验证当日是否已存在笔记，如果已存在则返回错误。
+// 验证通过后创建新的每日笔记实体并保存到数据库。
+//
+// 参数：
+//   ctx - 请求上下文
+//   userID - 用户ID
+//   content - 笔记内容
+//
+// 返回：
+//   DailyNoteEntity - 创建成功的每日笔记实体
+//   error - 错误信息
 func (s *Service) CreateDailyNote(ctx context.Context, userID int64, content string) (DailyNoteEntity, error) {
 	// 获取今天的日期（仅日期部分，时间设置为00:00:00）
 	today := time.Now().Truncate(24 * time.Hour)
@@ -45,6 +66,10 @@ func (s *Service) CreateDailyNote(ctx context.Context, userID int64, content str
 	if err == nil {
 		// 已存在笔记
 		return nil, ErrDailyNoteAlreadyExists
+	}
+	// 如果错误不是"未找到"，说明是其他错误（如数据库连接错误）
+	if !errors.Is(err, ErrDailyNoteNotFound) {
+		return nil, fmt.Errorf("failed to check existing daily note: %w", err)
 	}
 
 	// 创建新笔记
@@ -63,6 +88,14 @@ func (s *Service) CreateDailyNote(ctx context.Context, userID int64, content str
 }
 
 // GetTodayDailyNote 获取今日的每日笔记
+//
+// 参数：
+//   ctx - 请求上下文
+//   userID - 用户ID
+//
+// 返回：
+//   DailyNoteEntity - 今日的每日笔记实体
+//   error - 错误信息
 func (s *Service) GetTodayDailyNote(ctx context.Context, userID int64) (DailyNoteEntity, error) {
 	// 获取今天的日期（仅日期部分，时间设置为00:00:00）
 	today := time.Now().Truncate(24 * time.Hour)
@@ -70,20 +103,31 @@ func (s *Service) GetTodayDailyNote(ctx context.Context, userID int64) (DailyNot
 	// 查询今日笔记
 	dailyNoteEntity, err := s.repo.FindByUserIDAndDate(ctx, userID, today)
 	if err != nil {
-		return nil, ErrDailyNoteNotFound
+		return nil, err
 	}
 
 	return dailyNoteEntity, nil
 }
 
 // GetDailyNoteList 根据用户ID分页获取每日笔记列表
+//
+// 参数：
+//   ctx - 请求上下文
+//   userID - 用户ID
+//   page - 页码（从1开始）
+//   pageSize - 每页大小
+//
+// 返回：
+//   []DailyNoteEntity - 每日笔记实体列表
+//   int64 - 总记录数
+//   error - 错误信息
 func (s *Service) GetDailyNoteList(ctx context.Context, userID int64, page, pageSize int) ([]DailyNoteEntity, int64, error) {
 	// 校验分页参数
 	if page < 1 {
 		page = 1
 	}
-	if pageSize < 1 || pageSize > 50 {
-		pageSize = 10
+	if pageSize < 1 || pageSize > MaxPageSize {
+		pageSize = DefaultPageSize
 	}
 
 	// 查询笔记列表
@@ -91,6 +135,15 @@ func (s *Service) GetDailyNoteList(ctx context.Context, userID int64, page, page
 }
 
 // UpdateDailyNote 更新今日的每日笔记
+//
+// 参数：
+//   ctx - 请求上下文
+//   userID - 用户ID
+//   content - 新的笔记内容
+//
+// 返回：
+//   DailyNoteEntity - 更新后的每日笔记实体
+//   error - 错误信息
 func (s *Service) UpdateDailyNote(ctx context.Context, userID int64, content string) (DailyNoteEntity, error) {
 	// 获取今天的日期（仅日期部分，时间设置为00:00:00）
 	today := time.Now().Truncate(24 * time.Hour)
@@ -98,7 +151,7 @@ func (s *Service) UpdateDailyNote(ctx context.Context, userID int64, content str
 	// 查询今日笔记
 	dailyNoteEntity, err := s.repo.FindByUserIDAndDate(ctx, userID, today)
 	if err != nil {
-		return nil, ErrDailyNoteNotFound
+		return nil, err
 	}
 
 	// 更新内容
@@ -110,13 +163,20 @@ func (s *Service) UpdateDailyNote(ctx context.Context, userID int64, content str
 	// 保存到仓储
 	err = s.repo.Update(ctx, dailyNoteEntity)
 	if err != nil {
-		return nil, ErrDailyNoteUpdateFailed
+		return nil, fmt.Errorf("failed to update daily note: %w", err)
 	}
 
 	return dailyNoteEntity, nil
 }
 
 // DeleteDailyNote 删除今日的每日笔记
+//
+// 参数：
+//   ctx - 请求上下文
+//   userID - 用户ID
+//
+// 返回：
+//   error - 错误信息
 func (s *Service) DeleteDailyNote(ctx context.Context, userID int64) error {
 	// 获取今天的日期（仅日期部分，时间设置为00:00:00）
 	today := time.Now().Truncate(24 * time.Hour)
@@ -124,13 +184,13 @@ func (s *Service) DeleteDailyNote(ctx context.Context, userID int64) error {
 	// 查询今日笔记
 	dailyNoteEntity, err := s.repo.FindByUserIDAndDate(ctx, userID, today)
 	if err != nil {
-		return ErrDailyNoteNotFound
+		return err
 	}
 
 	// 删除笔记
 	err = s.repo.Delete(ctx, dailyNoteEntity.GetID())
 	if err != nil {
-		return ErrDailyNoteDeleteFailed
+		return fmt.Errorf("failed to delete daily note: %w", err)
 	}
 
 	return nil

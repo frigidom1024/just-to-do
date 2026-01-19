@@ -155,7 +155,7 @@ func (r *DailyNoteRepository) insert(ctx context.Context, entity daily_note.Dail
 			user_id, note_date, content, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	result, err := r.db.ExecContext(ctx, query,
 		entity.GetUserID(),
 		entity.GetNoteDate(),
 		entity.GetContent(),
@@ -165,6 +165,21 @@ func (r *DailyNoteRepository) insert(ctx context.Context, entity daily_note.Dail
 	if err != nil {
 		return fmt.Errorf("failed to insert daily note: %w", err)
 	}
+
+	// 获取插入的ID
+	id, err := result.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("failed to get last insert id: %w", err)
+	}
+
+	// 验证插入成功：重新查询记录以确认
+	// 注意：由于领域实体是不可变的，我们无法直接设置ID
+	// 所以我们通过查询来验证插入是否成功
+	_, err = r.FindByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to verify inserted daily note: %w", err)
+	}
+
 	return nil
 }
 

@@ -10,6 +10,7 @@ package daily_note
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"todolist/internal/domain/daily_note"
@@ -92,10 +93,18 @@ func (s *DailyNoteApplicationServiceImpl) GetTodayDailyNote(ctx context.Context,
 	// 调用领域服务执行业务逻辑
 	entity, err := s.dailyNoteService.GetTodayDailyNote(ctx, userID)
 	if err != nil {
-		applogger.WarnContext(ctx, "获取今日每日笔记失败",
-			applogger.Int64("user_id", userID),
-			applogger.Err(err),
-		)
+		// 对于"未找到"错误，使用Info级别而不是Warn，因为这是正常业务场景
+		if errors.Is(err, daily_note.ErrDailyNoteNotFound) {
+			applogger.InfoContext(ctx, "今日每日笔记不存在",
+				applogger.Int64("user_id", userID),
+			)
+		} else {
+			// 其他错误使用Error级别
+			applogger.ErrorContext(ctx, "获取今日每日笔记失败",
+				applogger.Int64("user_id", userID),
+				applogger.Err(err),
+			)
+		}
 		return nil, err
 	}
 
