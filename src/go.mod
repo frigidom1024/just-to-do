@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/frigidom1024/go-jwt-middleware v0.0.0-20260118082312-3aa77446d81f // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect

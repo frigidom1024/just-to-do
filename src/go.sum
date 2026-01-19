@@ -1,5 +1,7 @@
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
+github.com/frigidom1024/go-jwt-middleware v0.0.0-20260118082312-3aa77446d81f h1:hQPtGjDTZUr3yMeb5cGpH0tbn+PY7LlKq0ohOiE5F94=
+github.com/frigidom1024/go-jwt-middleware v0.0.0-20260118082312-3aa77446d81f/go.mod h1:MDbyCu51SSJ42bAoqCZzCNdittI6jlBv0qSfIcc/KkE=
 github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/go-sql-driver/mysql v1.8.1/go.mod h1:wEBSXgmK//2ZFJyE+qWnIsVGmvmEKlqwuVSjsCm7DZg=
