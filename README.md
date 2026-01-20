@@ -22,7 +22,7 @@
 | **Web框架** | net/http | 标准库 |
 | **数据库** | MySQL | 8.0+ |
 | **ORM** | sqlx | - |
-| **配置管理** | Viper | - |
+| **配置管理** | 环境变量 | - |
 | **认证授权** | JWT | golang-jwt/jwt/v5 |
 | **密码加密** | bcrypt | golang.org/x/crypto |
 | **架构模式** | DDD + Clean Arch | - |
@@ -75,17 +75,22 @@ todo-service/
 │   │   │       ├── db.go         # 数据库客户端
 │   │   │       └── user_repository.go  # 用户仓储实现
 │   │   ├── config/              # 配置管理
-│   │   │   ├── db_config.go     # 数据库配置
-│   │   │   └── jwt_config.go    # JWT 配置
+│   │   │   ├── db_config.go     # 数据库配置（环境变量）
+│   │   │   ├── env.go           # 环境变量辅助函数
+│   │   │   └── jwt_config.go    # JWT 配置（环境变量）
 │   │   └── hasher/              # 密码哈希实现
 │   │
 │   └── pkg/                     # 内部包
 │       ├── logger/              # 日志组件
-│       ├── auth/                # 认证工具
-│       │   ├── hasher.go        # bcrypt 哈希
-│       │   └── token.go         # JWT Token 工具
-│       └── context/             # 上下文工具 ⭐ 新增
-│           └── user.go         # 用户上下文获取
+│       ├── domainerr/           # 领域错误类型 ⭐ 新增
+│       └── auth/                # 认证工具
+│           ├── hasher.go        # bcrypt 哈希
+│           └── token.go         # JWT Token 工具
+│
+├── src/internal/routes/          # 路由注册 ⭐ 新增
+│   ├── user_routes.go           # 用户路由
+│   ├── health_routes.go         # 健康检查路由
+│   └── daily_note_routes.go     # 每日笔记路由
 │
 ├── docs/                        # 文档
 │   ├── JWT_AUTHENTICATION.md    # JWT 认证说明
@@ -93,6 +98,8 @@ todo-service/
 │   ├── DTO_ARCHITECTURE.md      # DTO 架构设计
 │   ├── DTO_LOCATION_REFACTOR.md # DTO 重构说明
 │   └── APPLICATION_LAYER_IMPROVEMENTS.md  # 应用层优化
+│
+├── CONVENTIONS.md                # 项目开发规范 ⭐ 新增
 │
 ├── deployments/                 # 部署配置
 │   ├── db/                       # 数据库部署
@@ -222,16 +229,35 @@ git clone <repository-url>
 cd todo-service
 
 # 2. 安装依赖
+cd src
 go mod download
 
-# 3. 配置数据库
-cp config/config.example.yaml config/config.yaml
-# 编辑 config.yaml 中的数据库连接信息
+# 3. 配置环境变量
+# 方式1：使用 .env 文件
+cat > .env << EOF
+MYSQL_HOST=localhost
+MYSQL_PORT=3307
+MYSQL_DB=todolist
+MYSQL_USER=root
+MYSQL_PASSWORD=123456
+JWT_SECRET_KEY=your-secret-key-at-least-32-characters-long
+JWT_EXPIRE_DURATION=24h
+EOF
 
-# 4. 运行数据库迁移
-go run scripts/migrate.go
+# 方式2：设置系统环境变量
+export MYSQL_HOST=localhost
+export MYSQL_PORT=3307
+export MYSQL_DB=todolist
+export MYSQL_USER=root
+export MYSQL_PASSWORD=123456
+export JWT_SECRET_KEY=your-secret-key-at-least-32-characters-long
+
+# 4. 启动 MySQL（使用 Docker）
+cd ..
+docker-compose up -d
 
 # 5. 启动服务
+cd src
 go run cmd/server/main.go
 
 # 服务将在 http://localhost:8080 启动
@@ -383,29 +409,36 @@ mux.Handle("/api/admin/users",
 
 ### 上下文工具
 
-**位置：** [`internal/pkg/context/user.go`](internal/pkg/context/user.go)
+**位置：** [`src/internal/interfaces/http/middleware/auth.go`](src/internal/interfaces/http/middleware/auth.go)
 
 **功能：**
-- ✅ `GetUserID(ctx)` - 获取当前用户 ID
-- ✅ `GetUsername(ctx)` - 获取当前用户名
-- ✅ `GetRole(ctx)` - 获取用户角色
-- ✅ `HasRole(ctx, role)` - 检查是否有指定角色
+- ✅ `GetDataFromContext(ctx)` - 从上下文获取用户信息（返回 middleware.User）
+- ✅ `GenerateToken(dto)` - 生成 JWT Token
+- ✅ `GetAuthMiddleware()` - 获取认证中间件实例
+
+**middleware.User 结构：**
+```go
+type User struct {
+    UserID   int64
+    Username string
+    Role      string
+}
+```
 
 **使用示例：**
 ```go
-import "todolist/internal/pkg/contextx"
+import "todolist/internal/interfaces/http/middleware"
 
 func GetCurrentUserHandler(ctx context.Context, req Empty) (UserResponse, error) {
     // 获取当前用户
-    userID, err := contextx.GetUserID(ctx)
-    if err != nil {
-        return UserResponse{}, err
+    user, ok := middleware.GetDataFromContext(ctx)
+    if !ok {
+        return UserResponse{}, errors.New("unauthorized")
     }
 
-    // 检查权限
-    if !contextx.HasRole(ctx, "admin") {
-        return UserResponse{}, ErrPermissionDenied
-    }
+    // 使用用户信息
+    userID := user.UserID
+    username := user.Username
 
     // 业务逻辑
     return userService.GetByID(ctx, userID)
@@ -420,6 +453,7 @@ func GetCurrentUserHandler(ctx context.Context, req Empty) (UserResponse, error)
 
 | 文档 | 说明 |
 |------|------|
+| [CONVENTIONS.md](CONVENTIONS.md) | **项目开发规范（必读）** |
 | [JWT_AUTHENTICATION.md](docs/JWT_AUTHENTICATION.md) | JWT 认证机制完整指南 |
 | [JWT_QUICK_START.md](docs/JWT_QUICK_START.md) | JWT 快速参考 |
 | [DTO_ARCHITECTURE.md](docs/DTO_ARCHITECTURE.md) | DTO 架构设计 |
@@ -427,6 +461,14 @@ func GetCurrentUserHandler(ctx context.Context, req Empty) (UserResponse, error)
 | [APPLICATION_LAYER_IMPROVEMENTS.md](docs/APPLICATION_LAYER_IMPROVEMENTS.md) | 应用层优化 |
 
 ## 开发规范
+
+项目遵循统一的开发规范，详见 [CONVENTIONS.md](CONVENTIONS.md)，包括：
+
+- **架构概览**：DDD分层架构说明
+- **错误处理规范**：领域错误类型定义和HTTP状态码映射
+- **日志规范**：结构化日志使用指南
+- **DDD设计规范**：领域驱动设计最佳实践
+- **代码组织规范**：文件和目录组织约定
 
 ### 日志规范
 
@@ -493,6 +535,8 @@ ls internal/infrastructure/persistence/migrations/
 - [x] HTTP 基础框架
 - [x] 健康检查接口
 - [x] 结构化日志组件
+- [x] 错误处理机制（domainerr）
+- [x] 配置管理（环境变量）
 - [x] 用户领域模型
   - [x] 用户实体（Entity）
   - [x] 值对象（Email, Password, Username）
@@ -503,16 +547,24 @@ ls internal/infrastructure/persistence/migrations/
 - [x] 密码哈希（bcrypt）
 - [x] JWT Token 工具
 - [x] 认证中间件
-- [x] 上下文工具
+- [x] 路由模块
 - [x] 应用层服务（Application）
 - [x] DTO 架构
 - [x] 数据库连接和配置
 - [x] 用户注册/登录接口
+- [x] 每日笔记功能
+  - [x] 每日笔记实体
+  - [x] 每日笔记服务
+  - [x] 每日笔记仓储
+  - [x] 每日笔记应用服务
+  - [x] 每日笔记接口
+- [x] 数据库初始化脚本
+- [x] Docker 部署配置
+- [x] 项目开发规范文档（CONVENTIONS.md）
 
 ### 进行中 🚧
 
 - [ ] 待办事项领域模型
-- [ ] 每日笔记领域模型
 - [ ] Markdown 导出功能
 - [ ] 单元测试
 - [ ] API 文档完善
@@ -542,41 +594,59 @@ go test -cover ./...
 
 ### 环境变量
 
+项目使用环境变量进行配置，推荐使用 `.env` 文件或直接设置系统环境变量：
+
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | `SERVER_PORT` | 服务端口 | 8080 |
-| `DB_HOST` | 数据库主机 | localhost |
-| `DB_PORT` | 数据库端口 | 3306 |
-| `DB_NAME` | 数据库名称 | todolist |
-| `DB_USER` | 数据库用户 | root |
-| `DB_PASSWORD` | 数据库密码 | - |
-| `JWT_SECRET` | JWT 密钥 | - |
-| `JWT_EXPIRATION` | Token 过期时间 | 24h |
+| `MYSQL_HOST` | MySQL主机 | localhost |
+| `MYSQL_PORT` | MySQL端口 | 3307 |
+| `MYSQL_DB` | 数据库名称 | todolist |
+| `MYSQL_USER` | MySQL用户 | root |
+| `MYSQL_PASSWORD` | MySQL密码 | 123456 |
+| `MYSQL_MAX_OPEN_CONNS` | 最大连接数 | 100 |
+| `MYSQL_MAX_IDLE_CONNS` | 最大空闲连接数 | 10 |
+| `JWT_SECRET_KEY` | JWT密钥（至少32字符） | - |
+| `JWT_EXPIRE_DURATION` | Token过期时间 | 24h |
 | `LOG_LEVEL` | 日志级别 | info |
-| `LOG_FORMAT` | 日志格式 | json |
 
-### 配置文件
+### 快速启动
+
+```bash
+# 方式1：使用环境变量文件
+cat > .env << EOF
+MYSQL_HOST=localhost
+MYSQL_PORT=3307
+MYSQL_DB=todolist
+MYSQL_USER=root
+MYSQL_PASSWORD=123456
+JWT_SECRET_KEY=your-secret-key-at-least-32-characters-long
+EOF
+
+# 方式2：直接设置环境变量
+export MYSQL_HOST=localhost
+export MYSQL_PORT=3307
+export MYSQL_DB=todolist
+export MYSQL_USER=root
+export MYSQL_PASSWORD=123456
+export JWT_SECRET_KEY=your-secret-key-at-least-32-characters-long
+
+# 启动服务
+go run cmd/server/main.go
+```
+
+### Docker Compose 配置
+
+使用 `docker-compose.yml` 可以自动配置环境变量：
 
 ```yaml
-# config/config.yaml
-server:
-  port: 8080
-
-database:
-  host: localhost
-  port: 3306
-  name: todolist
-  user: root
-  password: ""
-
-jwt:
-  secret_key: "your-secret-key-at-least-32-characters"
-  expire_duration: 24h
-
-logger:
-  level: info
-  format: json
-  add_source: false
+services:
+  mysql:
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: todolist
+    ports:
+      - "3307:3306"  # 映射到主机3307端口避免冲突
 ```
 
 ## 常见问题
@@ -612,11 +682,18 @@ Headers: Authorization: Bearer <token>
 ### 3. 如何获取当前用户？
 
 ```go
-import "todolist/internal/pkg/contextx"
+import "todolist/internal/interfaces/http/middleware"
 
 func Handler(ctx context.Context) {
-    userID := contextx.MustGetUserID(ctx)
-    username := contextx.MustGetUsername(ctx)
+    user, ok := middleware.GetDataFromContext(ctx)
+    if !ok {
+        // 处理未认证情况
+        return
+    }
+
+    userID := user.UserID
+    username := user.Username
+    role := user.Role
     // ...
 }
 ```
@@ -631,7 +708,8 @@ mux.Handle("/api/admin/users",
             handler.Wrap(AdminHandler))))
 
 // 在 Handler 中检查
-if !contextx.HasRole(ctx, "admin") {
+user, ok := middleware.GetDataFromContext(ctx)
+if !ok || user.Role != "admin" {
     return errors.New("permission denied")
 }
 ```
