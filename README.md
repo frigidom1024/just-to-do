@@ -16,18 +16,18 @@
 
 ## 技术栈
 
-| 组件 | 技术 | 版本 |
-|------|------|------|
-| **语言** | Go | 1.25.5+ |
-| **Web框架** | net/http | 标准库 |
-| **数据库** | MySQL | 8.0+ |
-| **ORM** | sqlx | - |
-| **配置管理** | 环境变量 | - |
-| **认证授权** | JWT | golang-jwt/jwt/v5 |
-| **密码加密** | bcrypt | golang.org/x/crypto |
-| **架构模式** | DDD + Clean Arch | - |
-| **日志** | 结构化日志 | slog |
-| **容器化** | Docker | - |
+| 组件 | 技术 | 版本 | 说明 |
+|------|------|------|------|
+| **语言** | Go | 1.25.5+ | - |
+| **Web框架** | net/http | 标准库 | - |
+| **数据库** | MySQL | 8.0+ | - |
+| **ORM** | sqlx | - | - |
+| **配置管理** | 环境变量 | - | - |
+| **认证授权** | JWT | golang-jwt/jwt/v5, go-jwt-middleware | 第三方库 ⭐ |
+| **密码加密** | bcrypt | golang.org/x/crypto | - |
+| **架构模式** | DDD + Clean Arch | - | - |
+| **日志** | 结构化日志 | slog | - |
+| **容器化** | Docker | - | - |
 
 ## 项目结构
 
@@ -352,31 +352,77 @@ Authorization: Bearer <token>
 
 ## 认证机制
 
-### JWT Token 工具
+项目使用第三方 JWT 中间件库进行认证管理：
 
-项目提供了完整的 JWT Token 管理工具：
+### go-jwt-middleware
 
-**位置：** [`internal/pkg/auth/token.go`](internal/pkg/auth/token.go)
+**仓库地址**: [github.com/frigidom1024/go-jwt-middleware](https://github.com/frigidom1024/go-jwt-middleware)
 
-**功能：**
-- ✅ `GenerateToken(userID, username, role)` - 生成 Token
-- ✅ `ParseToken(token)` - 解析和验证 Token
-- ✅ `RefreshToken(token)` - 刷新 Token
+**版本**: `v0.0.0-20260118082312-3aa77446d81f`
+
+**特性**：
+- ✅ 泛型实现的 JWT 认证中间件
+- ✅ 支持自定义用户信息类型
+- ✅ 自动 Token 生成和验证
+- ✅ 灵活的过期时间配置
+- ✅ 单例模式管理认证实例
+
+**为什么选择这个库？**
+- ✅ **泛型设计**：支持自定义用户信息类型，类型安全
+- ✅ **开箱即用**：提供完整的认证中间件，无需手动实现
+- ✅ **灵活配置**：支持动态过期时间、自定义密钥
+- ✅ **简化集成**：自动处理 Token 生成、验证、上下文注入
+- ✅ **生产就绪**：经过多个项目验证，稳定可靠
+
+### 认证中间件使用
+
+**位置：** [`src/internal/interfaces/http/middleware/auth.go`](src/internal/interfaces/http/middleware/auth.go)
+
+**核心功能：**
+- ✅ `GetAuthMiddleware()` - 获取认证中间件实例（单例模式）
+- ✅ `GenerateToken(dto)` - 生成 JWT Token
+- ✅ `GetDataFromContext(ctx)` - 从上下文获取用户信息
 
 **使用示例：**
 ```go
-import "todolist/internal/pkg/auth"
+import "todolist/internal/interfaces/http/middleware"
+import core "github.com/frigidom1024/go-jwt-middleware/core"
 
-// 生成 Token
-tokenTool := auth.NewTokenTool(cfg)
-token, err := tokenTool.GenerateToken(userID, username, "user")
+// 1. 获取认证中间件实例
+auth := middleware.GetAuthMiddleware()
+
+// 2. 在路由中使用
+mux.Handle("/api/users/me",
+    auth.Authenticate(handler.Wrap(GetCurrentUserHandler)))
+
+// 3. 在 Handler 中获取用户信息
+func Handler(ctx context.Context) {
+    user, ok := middleware.GetDataFromContext(ctx)
+    if !ok {
+        return errors.New("unauthorized")
+    }
+
+    userID := user.UserID
+    username := user.Username
+    role := user.Role
+    // ...
+}
+```
+
+**middleware.User 结构：**
+```go
+type User struct {
+    UserID   int64
+    Username string
+    Role      string
+}
 ```
 
 ### 认证中间件
 
-**位置：** [`internal/interfaces/http/middleware/auth.go`](internal/interfaces/http/middleware/auth.go)
+**位置：** [`src/internal/interfaces/http/middleware/auth.go`](src/internal/interfaces/http/middleware/auth.go)
 
-**中间件类型：**
+**提供的中间件方法（来自 go-jwt-middleware）：**
 
 | 中间件 | 说明 | 使用场景 |
 |--------|------|---------|
@@ -384,17 +430,19 @@ token, err := tokenTool.GenerateToken(userID, username, "user")
 | `OptionalAuthenticate` | 可选认证，可以匿名访问 | 公开信息查看 |
 | `RequireRole(role)` | 角色验证 | 管理员接口 |
 
+**配置方式：**
+认证中间件通过环境变量自动配置：
+- `JWT_SECRET_KEY` - JWT 密钥（必需）
+- `JWT_EXPIRE_DURATION` - Token 过期时间（默认24h）
+
 **使用示例：**
 ```go
 import (
     "todolist/internal/interfaces/http/middleware"
-    appauth "todolist/internal/pkg/auth"
 )
 
-// 初始化
-cfg, _ := config.GetJWTConfig()
-tokenTool := appauth.NewTokenTool(cfg)
-auth := middleware.NewAuthMiddleware(tokenTool)
+// 获取认证中间件实例（已自动配置）
+auth := middleware.GetAuthMiddleware()
 
 // 受保护的路由
 mux.Handle("/api/users/me",
@@ -733,5 +781,5 @@ if !ok || user.Role != "admin" {
 
 ---
 
-**最后更新：** 2024-01-17
-**文档版本：** 2.0
+**最后更新：** 2026-01-20
+**文档版本：** 1.1.0
