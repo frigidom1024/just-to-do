@@ -8,7 +8,23 @@
       "Bash(git add:*)",
       "Bash(chmod:*)",
       "Bash(git commit:*)",
-      "Bash(go clean:*)"
+      "Bash(go clean:*)",
+      "Skill(gitcommit)",
+      "Bash(docker logs:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker inspect:*)",
+      "Bash(python:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker system prune:*)",
+      "Bash(docker port:*)",
+      "Bash(docker run:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist:*)",
+      "Bash(cmd:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker context ls:*)",
+      "Bash(docker:*)"
     ]
   }
 }

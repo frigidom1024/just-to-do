@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"todolist/internal/pkg/logger"
-
-	"github.com/spf13/viper"
 )
 
 const (
@@ -35,11 +33,11 @@ type JWTConfig interface {
 
 // jwtConfig JWT 配置的具体实现。
 type jwtConfig struct {
-	// secretKey JWT 签名密钥，从配置文件或环境变量读取
-	secretKey string `yaml:"secret_key" mapstructure:"secret_key"`
+	// secretKey JWT 签名密钥，从环境变量读取
+	secretKey string
 
 	// expireDuration Token 有效期，默认 24 小时
-	expireDuration time.Duration `yaml:"expire_duration" mapstructure:"expire_duration"`
+	expireDuration time.Duration
 }
 
 var (
@@ -70,7 +68,7 @@ func GetJWTConfig() JWTConfig {
 
 // loadJWTConfig 加载并验证 JWT 配置。
 //
-// 从 Viper 加载配置，设置默认值，并进行验证。
+// 从环境变量加载配置，设置默认值，并进行验证。
 //
 // 返回：
 //
@@ -79,15 +77,12 @@ func GetJWTConfig() JWTConfig {
 func loadJWTConfig() (JWTConfig, error) {
 	cfg := &jwtConfig{}
 
-	// 从配置文件加载
-	if err := viper.UnmarshalKey("jwt", &cfg); err != nil {
-		logger.Error("加载 JWT 配置失败，使用默认配置",
-			logger.Err(err))
-		setJWTDefaults(cfg)
-	} else {
-		// 设置未配置的字段默认值
-		setJWTDefaults(cfg)
-	}
+	// 从环境变量加载配置
+	cfg.secretKey = getEnvOrDefault("JWT_SECRET_KEY", "")
+	cfg.expireDuration = getEnvDurationOrDefault("JWT_EXPIRE_DURATION", 0)
+
+	// 设置未配置的字段默认值
+	setJWTDefaults(cfg)
 
 	// 验证配置
 	if err := validateJWTConfig(cfg); err != nil {
