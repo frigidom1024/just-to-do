@@ -2,7 +2,6 @@ package mysql
 
 import (
 	"testing"
-
 	mysql "todolist/internal/infrastructure/persistence/mysql"
 
 	_ "github.com/go-sql-driver/mysql" // 导入MySQL驱动

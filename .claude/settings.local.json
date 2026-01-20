@@ -24,7 +24,10 @@
       "Bash(cmd:*)",
       "Bash(docker ps:*)",
       "Bash(docker context ls:*)",
-      "Bash(docker:*)"
+      "Bash(docker:*)",
+      "Bash(git show:*)",
+      "Bash(go mod graph:*)",
+      "Bash(go test:*)"
     ]
   }
 }

@@ -6,109 +6,10 @@ import (
 
 	"todolist/internal/infrastructure/config"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLoadMySQLConfig(t *testing.T) {
-	// 清理viper配置
-	viper.Reset()
-
-	// 设置测试配置
-	viper.Set("mysql.host", "localhost")
-	viper.Set("mysql.port", 3306)
-	viper.Set("mysql.db", "test_db")
-	viper.Set("mysql.user", "test_user")
-	viper.Set("mysql.password", "test_pass")
-	viper.Set("mysql.max_open_conns", 50)
-	viper.Set("mysql.max_idle_conns", 10)
-
-	cfg, err := config.LoadMySQLConfig()
-	assert.NoError(t, err)
-	assert.NotNil(t, cfg)
-	assert.Equal(t, "localhost", cfg.Host)
-	assert.Equal(t, 3306, cfg.Port)
-	assert.Equal(t, "test_db", cfg.DB)
-	assert.Equal(t, "test_user", cfg.User)
-	assert.Equal(t, "test_pass", cfg.Password)
-	assert.Equal(t, 50, cfg.MaxOpenConns)
-	assert.Equal(t, 10, cfg.MaxIdleConns)
-}
-
-func TestLoadMySQLConfig_DefaultValues(t *testing.T) {
-	// 清理viper配置
-	viper.Reset()
-
-	// 只设置必要配置，其他使用默认值
-	viper.Set("mysql.host", "localhost")
-	viper.Set("mysql.port", 3306)
-	viper.Set("mysql.db", "test_db")
-	viper.Set("mysql.user", "test_user")
-	viper.Set("mysql.password", "test_pass")
-	// 不设置连接池参数，使用默认值
-	viper.Set("mysql.max_open_conns", 0)
-	viper.Set("mysql.max_idle_conns", 0)
-
-	cfg, err := config.LoadMySQLConfig()
-	assert.NoError(t, err)
-	assert.NotNil(t, cfg)
-	// 验证默认连接池值
-	assert.Equal(t, 100, cfg.MaxOpenConns) // 默认最大连接数
-	assert.Equal(t, 10, cfg.MaxIdleConns)  // 默认最大空闲连接数
-}
-
-func TestLoadMySQLConfig_InvalidConfig(t *testing.T) {
-	// 清理viper配置
-	viper.Reset()
-
-	// 测试空主机名
-	viper.Set("mysql.host", "")
-	viper.Set("mysql.port", 3306)
-	viper.Set("mysql.db", "test_db")
-	viper.Set("mysql.user", "test_user")
-	viper.Set("mysql.password", "test_pass")
-
-	_, err := config.LoadMySQLConfig()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "mysql host cannot be empty")
-
-	// 测试无效端口
-	viper.Reset()
-	viper.Set("mysql.host", "localhost")
-	viper.Set("mysql.port", 0)
-	viper.Set("mysql.db", "test_db")
-	viper.Set("mysql.user", "test_user")
-	viper.Set("mysql.password", "test_pass")
-
-	_, err = config.LoadMySQLConfig()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "mysql port must be between 1 and 65535")
-
-	// 测试空用户名
-	viper.Reset()
-	viper.Set("mysql.host", "localhost")
-	viper.Set("mysql.port", 3306)
-	viper.Set("mysql.db", "test_db")
-	viper.Set("mysql.user", "")
-	viper.Set("mysql.password", "test_pass")
-
-	_, err = config.LoadMySQLConfig()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "mysql user cannot be empty")
-
-	// 测试空数据库名
-	viper.Reset()
-	viper.Set("mysql.host", "localhost")
-	viper.Set("mysql.port", 3306)
-	viper.Set("mysql.db", "")
-	viper.Set("mysql.user", "test_user")
-	viper.Set("mysql.password", "test_pass")
-
-	_, err = config.LoadMySQLConfig()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "mysql db cannot be empty")
-}
-
+// TestMySQLConfig_DSN 测试 DSN 生成
 func TestMySQLConfig_DSN(t *testing.T) {
 	cfg := &config.MySQLConfig{
 		Host:     "localhost",
@@ -123,6 +24,7 @@ func TestMySQLConfig_DSN(t *testing.T) {
 	assert.Equal(t, expectedDSN, dsn)
 }
 
+// TestMySQLConfig_String 测试 String 方法
 func TestMySQLConfig_String(t *testing.T) {
 	cfg := &config.MySQLConfig{
 		Host:     "localhost",
@@ -157,12 +59,7 @@ func TestLoadMySQLConfig_FromEnv(t *testing.T) {
 		os.Setenv("MYSQL_PASSWORD", origPassword)
 		os.Setenv("MYSQL_MAX_OPEN_CONNS", origMaxOpenConns)
 		os.Setenv("MYSQL_MAX_IDLE_CONNS", origMaxIdleConns)
-		// 清理viper配置
-		viper.Reset()
 	}()
-
-	// 清理当前配置
-	viper.Reset()
 
 	// 设置环境变量
 	os.Setenv("MYSQL_HOST", "env_host")
@@ -173,33 +70,126 @@ func TestLoadMySQLConfig_FromEnv(t *testing.T) {
 	os.Setenv("MYSQL_MAX_OPEN_CONNS", "60")
 	os.Setenv("MYSQL_MAX_IDLE_CONNS", "15")
 
-	// 直接使用os.Getenv验证环境变量是否设置成功
-	assert.Equal(t, "env_host", os.Getenv("MYSQL_HOST"))
-	assert.Equal(t, "3307", os.Getenv("MYSQL_PORT"))
-	assert.Equal(t, "env_db", os.Getenv("MYSQL_DB"))
-	assert.Equal(t, "env_user", os.Getenv("MYSQL_USER"))
-
-	// 执行测试 - 直接创建配置对象测试DSN生成
-	cfg := &config.MySQLConfig{
-		Host:     os.Getenv("MYSQL_HOST"),
-		Port:     3307,
-		DB:       os.Getenv("MYSQL_DB"),
-		User:     os.Getenv("MYSQL_USER"),
-		Password: os.Getenv("MYSQL_PASSWORD"),
-	}
+	// 加载配置
+	cfg, err := config.LoadMySQLConfig()
+	assert.NoError(t, err)
+	assert.NotNil(t, cfg)
 
 	// 验证配置
 	assert.Equal(t, "env_host", cfg.Host)
+	assert.Equal(t, 3307, cfg.Port)
 	assert.Equal(t, "env_db", cfg.DB)
 	assert.Equal(t, "env_user", cfg.User)
 	assert.Equal(t, "env_pass", cfg.Password)
-
-	// 测试DSN生成
-	dsn := cfg.DSN()
-	expectedDSN := "env_user:env_pass@tcp(env_host:3307)/env_db?charset=utf8mb4&parseTime=True&loc=Local"
-	assert.Equal(t, expectedDSN, dsn)
+	assert.Equal(t, 60, cfg.MaxOpenConns)
+	assert.Equal(t, 15, cfg.MaxIdleConns)
 }
 
+// TestLoadMySQLConfig_DefaultValues 测试默认值
+func TestLoadMySQLConfig_DefaultValues(t *testing.T) {
+	// 保存并清理环境变量
+	envKeys := []string{"MYSQL_HOST", "MYSQL_PORT", "MYSQL_DB", "MYSQL_USER", "MYSQL_PASSWORD"}
+	origValues := make(map[string]string)
+	for _, key := range envKeys {
+		origValues[key] = os.Getenv(key)
+		os.Unsetenv(key)
+	}
+
+	// 确保测试后恢复环境变量
+	defer func() {
+		for _, key := range envKeys {
+			if origValues[key] != "" {
+				os.Setenv(key, origValues[key])
+			}
+		}
+	}()
+
+	// 只设置必要的环境变量
+	os.Setenv("MYSQL_USER", "test_user")
+	os.Setenv("MYSQL_PASSWORD", "test_pass")
+
+	// 加载配置
+	cfg, err := config.LoadMySQLConfig()
+	assert.NoError(t, err)
+	assert.NotNil(t, cfg)
+
+	// 验证默认值
+	assert.Equal(t, "localhost", cfg.Host)
+	assert.Equal(t, 3307, cfg.Port)
+	assert.Equal(t, "test", cfg.DB) // 默认数据库名
+	assert.Equal(t, 100, cfg.MaxOpenConns)
+	assert.Equal(t, 10, cfg.MaxIdleConns)
+}
+
+// TestLoadMySQLConfig_InvalidConfig 测试无效配置
+func TestLoadMySQLConfig_InvalidConfig(t *testing.T) {
+	// 保存并清理环境变量
+	envKeys := []string{"MYSQL_HOST", "MYSQL_PORT", "MYSQL_DB", "MYSQL_USER", "MYSQL_PASSWORD"}
+	origValues := make(map[string]string)
+	for _, key := range envKeys {
+		origValues[key] = os.Getenv(key)
+		os.Unsetenv(key)
+	}
+
+	// 确保测试后恢复环境变量
+	defer func() {
+		for _, key := range envKeys {
+			if origValues[key] != "" {
+				os.Setenv(key, origValues[key])
+			}
+		}
+	}()
+
+	t.Run("empty host", func(t *testing.T) {
+		os.Setenv("MYSQL_USER", "test_user")
+		os.Setenv("MYSQL_PASSWORD", "test_pass")
+		os.Setenv("MYSQL_PORT", "3306")
+		os.Setenv("MYSQL_DB", "test_db")
+		// MYSQL_HOST 未设置
+
+		_, err := config.LoadMySQLConfig()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mysql host cannot be empty")
+	})
+
+	t.Run("invalid port", func(t *testing.T) {
+		os.Setenv("MYSQL_HOST", "localhost")
+		os.Setenv("MYSQL_PORT", "0")
+		os.Setenv("MYSQL_USER", "test_user")
+		os.Setenv("MYSQL_PASSWORD", "test_pass")
+		os.Setenv("MYSQL_DB", "test_db")
+
+		_, err := config.LoadMySQLConfig()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mysql port must be between 1 and 65535")
+	})
+
+	t.Run("empty user", func(t *testing.T) {
+		os.Setenv("MYSQL_HOST", "localhost")
+		os.Setenv("MYSQL_PORT", "3306")
+		// MYSQL_USER 未设置
+		os.Setenv("MYSQL_PASSWORD", "test_pass")
+		os.Setenv("MYSQL_DB", "test_db")
+
+		_, err := config.LoadMySQLConfig()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mysql user cannot be empty")
+	})
+
+	t.Run("empty database", func(t *testing.T) {
+		os.Setenv("MYSQL_HOST", "localhost")
+		os.Setenv("MYSQL_PORT", "3306")
+		os.Setenv("MYSQL_USER", "test_user")
+		os.Setenv("MYSQL_PASSWORD", "test_pass")
+		// MYSQL_DB 未设置
+
+		_, err := config.LoadMySQLConfig()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mysql db cannot be empty")
+	})
+}
+
+// TestCurrentMySQLConfig 显示当前配置信息（用于调试）
 func TestCurrentMySQLConfig(t *testing.T) {
 	cfg, err := config.LoadMySQLConfig()
 	assert.NoError(t, err)

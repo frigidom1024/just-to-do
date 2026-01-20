@@ -6,7 +6,30 @@ import (
 	"time"
 
 	"todolist/internal/pkg/logger"
+
+	"github.com/subosito/gotenv"
 )
+
+// init 初始化函数，加载.env文件
+func init() {
+	// 尝试从多个可能的路径加载.env文件
+	paths := []string{
+		".env",              // 当前目录
+		"../.env",           // 上级目录
+		"../../.env",        // 上上级目录
+		"../../../.env",     // 继续向上
+		"../../../../.env",  // 继续向上
+		"../../../../../.env", // 继续向上
+	}
+
+	for _, path := range paths {
+		if err := gotenv.Load(path); err == nil {
+			// 成功加载，不再尝试其他路径
+			return
+		}
+	}
+	// 所有路径都失败，静默忽略（使用环境变量或默认值）
+}
 
 // getEnvOrDefault 获取环境变量，如果不存在则返回默认值
 func getEnvOrDefault(key, defaultValue string) string {
